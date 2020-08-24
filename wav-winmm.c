@@ -16,6 +16,7 @@
 
 #include <windows.h>
 #include <stdio.h>
+#include <ctype.h>
 #include <dirent.h>
 #include "player.h"
 
@@ -44,11 +45,12 @@ struct play_info
     #define dprintf(...)
 #endif
 
+int notify = 0;
 int playing = 0;
 HANDLE player = NULL;
 int firstTrack = -1;
 int lastTrack = 0;
-int numTracks = 0;
+int numTracks = 1; /* +1 track to fix issues with last track playback. */
 char music_path[2048];
 int time_format = MCI_FORMAT_TMSF;
 CRITICAL_SECTION cs;
@@ -77,7 +79,14 @@ int player_main(struct play_info *info)
             }
         }
 
-        current++;
+        /* Commented out to repeat track after done playing. */
+        /* current++; */
+        /* Sending notify successful message:*/
+        if(notify == 1)
+        {
+            SendMessageA((HWND)0xffff, MM_MCINOTIFY, MCI_NOTIFY_SUCCESSFUL, 0xBEEF);
+            notify = 0;
+        }
     }
 
     playing = 0;
@@ -89,7 +98,7 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
     if (fdwReason == DLL_PROCESS_ATTACH)
     {
 #ifdef _DEBUG
-        fh = fopen("winmm.txt", "w");
+        fh = fopen("winmm.log", "w"); /* Renamed to .log*/
 #endif
         GetModuleFileName(hinstDLL, music_path, sizeof music_path);
 
@@ -160,6 +169,7 @@ MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR 
     if (fdwCommand & MCI_NOTIFY)
     {
         dprintf("  MCI_NOTIFY\r\n");
+        notify = 1; /* storing the notify request */
     }
 
     if (fdwCommand & MCI_WAIT)
@@ -264,7 +274,9 @@ MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR 
         if (uMsg == MCI_CLOSE)
         {
             dprintf("  MCI_CLOSE\r\n");
-
+            
+            /*Let's not kill the player thread.*/
+            /*
             if (player)
             {
                 TerminateThread(player, 0);
@@ -272,6 +284,7 @@ MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR 
 
             playing = 0;
             player = NULL;
+            */
         }
 
         if (uMsg == MCI_PLAY)
@@ -379,6 +392,8 @@ MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR 
         if (uMsg == MCI_STOP)
         {
             dprintf("  MCI_STOP\r\n");
+            plr_stop(); /* Make STOP command instant. */
+            
             playing = 0;
         }
 
@@ -427,6 +442,12 @@ MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR 
                 if (parms->dwItem == MCI_CDA_STATUS_TYPE_TRACK)
                 {
                     dprintf("      MCI_CDA_STATUS_TYPE_TRACK\r\n");
+                    /*Fix from the Dxwnd project*/
+                    /* ref. by WinQuake */
+                    if((parms->dwTrack > 0) &&  (parms->dwTrack , MAX_TRACKS)){
+                        if(tracks[parms->dwTrack].length > 0)
+                            parms->dwReturn = MCI_CDA_TRACK_AUDIO; 
+                    }
                 }
 
                 if (parms->dwItem == MCI_STATUS_MEDIA_PRESENT)
@@ -463,6 +484,9 @@ MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR 
                 if (parms->dwItem == MCI_STATUS_READY)
                 {
                     dprintf("      MCI_STATUS_READY\r\n");
+                    /*Fix from the Dxwnd project*/
+                    /* referenced by Quake/cd_win.c */
+                    parms->dwReturn = TRUE; /* TRUE=ready, FALSE=not ready */
                 }
 
                 if (parms->dwItem == MCI_STATUS_TIME_FORMAT)
@@ -492,25 +516,37 @@ MCIERROR WINAPI fake_mciSendStringA(LPCTSTR cmd, LPTSTR ret, UINT cchReturn, HAN
 {
     printf("MCI: %s\n", cmd);
 
-    if (strstr(cmd, "sysinfo"))
+    if (strstr(cmd, "sysinfo cdaudio quantity"))
     {
-        strcpy(ret, "cd");
+        strcpy(ret, "1");
         return 0;
     }
 
-    if (strstr(cmd, "stop cd"))
+    if (strstr(cmd, "sysinfo cdaudio name"))
     {
-        fake_mciSendCommandA(MAGIC_DEVICEID, MCI_STOP, 0, NULL);
+        strcpy(ret, "cdaudio");
+        return 0;
+    }
+
+    if (strstr(cmd, "stop cdaudio"))
+    {
+        fake_mciSendCommandA(MAGIC_DEVICEID, MCI_STOP, 0, (DWORD_PTR)NULL);
+        return 0;
+    }
+
+    if (strstr(cmd, "open cdaudio"))
+    {
+        fake_mciSendCommandA(MAGIC_DEVICEID, MCI_OPEN, 0, (DWORD_PTR)NULL);
         return 0;
     }
 
     int from = -1, to = -1;
-    if (sscanf(cmd, "play cd from %d to %d", &from, &to) == 2)
-    {
+    if (sscanf(cmd, "play cdaudio from %d to %d", &from, &to) == 2)
+    {    
         static MCI_PLAY_PARMS parms;
         parms.dwFrom = from;
         parms.dwTo = to;
-        fake_mciSendCommandA(MAGIC_DEVICEID, MCI_PLAY, MCI_FROM|MCI_TO, &parms);
+        fake_mciSendCommandA(MAGIC_DEVICEID, MCI_PLAY, MCI_FROM, (DWORD_PTR)&parms);
         return 0;
     }
 

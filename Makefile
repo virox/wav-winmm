@@ -1,12 +1,12 @@
 REV=$(shell sh -c 'git rev-parse --short @{0}')
 
-all: wav-winmm.dll
+all: ogg-winmm.dll
 
-wav-winmm.rc.o: wav-winmm.rc.in
-	sed 's/__REV__/$(REV)/g' wav-winmm.rc.in | sed 's/__FILE__/wav-winmm/g' | i586-mingw32msvc-windres -O coff -o wav-winmm.rc.o
+ogg-winmm.rc.o: ogg-winmm.rc.in
+	sed 's/__REV__/$(REV)/g' ogg-winmm.rc.in | sed 's/__FILE__/ogg-winmm/g' | windres -O coff -o ogg-winmm.rc.o
 
-wav-winmm.dll: wav-winmm.c wav-winmm.def wav-winmm.rc.o player.c
-	i586-mingw32msvc-gcc -std=c99 -Wl,--enable-stdcall-fixup -Ilibs/include -O2 -shared -s -o wav-winmm.dll wav-winmm.c player.c wav-winmm.def wav-winmm.rc.o -L. -lvorbisfile-3 -lwinmm -D_DEBUG
+ogg-winmm.dll: ogg-winmm.c ogg-winmm.rc.o ogg-winmm.def player.c stubs.c
+	mingw32-gcc -std=gnu99 -Wl,--enable-stdcall-fixup -Ilibs/include -O2 -shared -s -o ogg-winmm.dll ogg-winmm.c player.c stubs.c ogg-winmm.def ogg-winmm.rc.o -L. -lvorbisfile -lwinmm -D_DEBUG -static-libgcc
 
 clean:
-	rm -f wav-winmm.dll wav-winmm.rc.o
+	rm -f ogg-winmm.dll ogg-winmm.rc.o

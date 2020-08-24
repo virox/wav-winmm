@@ -7,13 +7,13 @@ PRODUCTVERSION 0,1,0,0
         BLOCK "040904B0"
         {
             VALUE "CompanyName", "Toni Spets"
-            VALUE "ProductName", "wav-winmm"
+            VALUE "ProductName", "ogg-winmm"
             VALUE "ProductVersion", "git~__REV__"
-            VALUE "InternalName", "wav-winmm"
+            VALUE "InternalName", "ogg-winmm"
             VALUE "LegalCopyright", "Copyright (c) 2012 Toni Spets"
-            VALUE "OriginalFileName", "wav-winmm.dll"
-            VALUE "FileDescription", "Windows Multimedia CD Audio WAV player wrapper"
-            VALUE "Comments", "https://github.com/hifi/wav-winmm/"
+            VALUE "OriginalFileName", "ogg-winmm.dll"
+            VALUE "FileDescription", "Windows Multimedia CD Audio OGG player wrapper"
+            VALUE "Comments", "https://github.com/hifi-unmaintained/ogg-winmm"
         }
     }
 

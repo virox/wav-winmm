@@ -126,7 +126,7 @@ int plr_pump()
         if (bytes == OV_EINVAL)
         {
             free(buf);
-            free(buf);
+            //free(buf);
             return 0;
         }
 
@@ -158,6 +158,32 @@ int plr_pump()
     }
 
     // volume control, kinda nasty
+    
+    // Add volume control with "winmm.ini".
+    int ogg_winmm_vol = 100;
+
+    FILE * fp;
+    fp = fopen ("winmm.ini", "r");
+            /* If not null read values */
+            if (fp != NULL){
+            fscanf(fp, "%d", &ogg_winmm_vol);
+            fclose(fp);
+        }
+        /* Else write new ini file */
+        else{
+        fp = fopen ("winmm.ini", "w+");
+        fprintf(fp, "%d\n"
+                    "#\n"
+                    "# Winmm.dll emulated CD music volume control.\n"
+                    "# Change the number to the desired volume level (0-100).", ogg_winmm_vol);
+        fclose(fp);
+    }
+
+    if (ogg_winmm_vol < 0) ogg_winmm_vol = 0;
+    if (ogg_winmm_vol > 100) ogg_winmm_vol = 100;
+    plr_vol = ogg_winmm_vol;
+    // end of volume control edits.
+    
     int x, end = pos / 2;
     short *sbuf = (short *)buf;
     for (x = 0; x < end; x++)

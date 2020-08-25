@@ -12,3 +12,4 @@ Based on the original "hifi" release of ogg-winmm with the following changes:
 - Logs now saved to winmm.log instead of winmm.txt.
 - MCI_NOTIFY message handling. (fixes Civ2 - Test of time tracks not changing)
 - Added make.cmd and renamed source files to "ogg-" instead of "wav-".
+- Added rudimentary MCI_PAUSE support.

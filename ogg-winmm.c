@@ -45,6 +45,7 @@ struct play_info
     #define dprintf(...)
 #endif
 
+int paused = 0;
 int notify = 0;
 int playing = 0;
 HANDLE player = NULL;
@@ -70,6 +71,11 @@ int player_main(struct play_info *info)
 
         while (1)
         {
+            if (paused)
+            {
+                Sleep(100);
+                continue;
+            }
             if (plr_pump() == 0)
                 break;
 
@@ -81,9 +87,11 @@ int player_main(struct play_info *info)
 
         /* Commented out to repeat track after done playing. */
         /* current++; */
+
         /* Sending notify successful message:*/
         if(notify == 1)
         {
+            dprintf("  Sending MCI_NOTIFY_SUCCESSFUL message...\r\n");
             SendMessageA((HWND)0xffff, MM_MCINOTIFY, MCI_NOTIFY_SUCCESSFUL, 0xBEEF);
             notify = 0;
         }
@@ -293,6 +301,7 @@ MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR 
             static struct play_info info = { -1, -1 };
 
             dprintf("  MCI_PLAY\r\n");
+            paused = 0;
 
             if (fdwCommand & MCI_FROM)
             {
@@ -395,6 +404,12 @@ MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR 
             plr_stop(); /* Make STOP command instant. */
             
             playing = 0;
+        }
+
+        if (uMsg == MCI_PAUSE)
+        {
+            dprintf("  MCI_PAUSE\r\n");
+            paused = 1;
         }
 
         if (uMsg == MCI_STATUS)
@@ -531,6 +546,12 @@ MCIERROR WINAPI fake_mciSendStringA(LPCTSTR cmd, LPTSTR ret, UINT cchReturn, HAN
     if (strstr(cmd, "stop cdaudio"))
     {
         fake_mciSendCommandA(MAGIC_DEVICEID, MCI_STOP, 0, (DWORD_PTR)NULL);
+        return 0;
+    }
+
+    if (strstr(cmd, "pause cdaudio"))
+    {
+        fake_mciSendCommandA(MAGIC_DEVICEID, MCI_PAUSE, 0, (DWORD_PTR)NULL);
         return 0;
     }
 

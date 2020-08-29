@@ -15,4 +15,4 @@ Based on the original "hifi" release of ogg-winmm with the following changes:
 - Added rudimentary MCI_PAUSE support.
 
 TODO:
-- Try to closer match the excellent cdaudio emulation of DxWnd and it's stand alone [CDAudio proxy]. https://sourceforge.net/projects/cdaudio-proxy/
+- Try to closer match the excellent cdaudio emulation of DxWnd and it's stand alone [CDAudio proxy.](https://sourceforge.net/projects/cdaudio-proxy/)

@@ -14,6 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+/* Code revised by DD (2020) */
+
 #include <windows.h>
 #include <stdio.h>
 #include <ctype.h>
@@ -25,9 +27,9 @@
 
 struct track_info
 {
-    char path[MAX_PATH];    // full path to ogg
-    unsigned int length;    // seconds
-    unsigned int position;  // seconds
+    char path[MAX_PATH];    /* full path to ogg */
+    unsigned int length;    /* seconds */
+    unsigned int position;  /* seconds */
 };
 
 static struct track_info tracks[MAX_TRACKS];
@@ -51,10 +53,11 @@ int playing = 0;
 HANDLE player = NULL;
 int firstTrack = -1;
 int lastTrack = 0;
-int numTracks = 1; /* +1 track to fix issues with last track playback. */
+int numTracks = 1; /* +1 for data track on mixed mode cd's */
 char music_path[2048];
 int time_format = MCI_FORMAT_TMSF;
 CRITICAL_SECTION cs;
+char alias_s[100] = "cdaudio";
 
 int player_main(struct play_info *info)
 {
@@ -94,6 +97,8 @@ int player_main(struct play_info *info)
             dprintf("  Sending MCI_NOTIFY_SUCCESSFUL message...\r\n");
             SendMessageA((HWND)0xffff, MM_MCINOTIFY, MCI_NOTIFY_SUCCESSFUL, 0xBEEF);
             notify = 0;
+            /* NOTE: Notify message after successful playback is not working in Vista+ */
+            /* Bug or broken design in mcicda.dll (also noted by the Wine team) */
         }
     }
 
@@ -126,7 +131,7 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 
         unsigned int position = 0;
 
-        for (int i = 0; i < MAX_TRACKS; i++)
+        for (int i = 1; i < MAX_TRACKS; i++) /* "Changed: int i = 0" to "1" we can skip track00.ogg" */
         {
             snprintf(tracks[i].path, sizeof tracks[i].path, "%s\\Track%02d.ogg", music_path, i);
             tracks[i].length = plr_length(tracks[i].path);
@@ -135,7 +140,7 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
             if (tracks[i].length < 4)
             {
                 tracks[i].path[0] = '\0';
-                position += 4; // missing tracks are 4 second data tracks for us
+                position += 4; /* missing tracks are 4 second data tracks for us */
             }
             else
             {
@@ -143,6 +148,7 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
                 {
                     firstTrack = i;
                 }
+                if(i == numTracks) numTracks -= 1; /* Take into account pure music cd's starting with track01.ogg */
 
                 dprintf("Track %02d: %02d:%02d @ %d seconds\r\n", i, tracks[i].length / 60, tracks[i].length % 60, tracks[i].position);
                 numTracks++;
@@ -168,6 +174,8 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
     return TRUE;
 }
 
+/* MCI commands */
+/* https://docs.microsoft.com/fi-fi/windows/win32/multimedia/multimedia-commands */
 MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR fdwCommand, DWORD_PTR dwParam)
 {
     char cmdbuf[1024];
@@ -293,6 +301,9 @@ MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR 
             playing = 0;
             player = NULL;
             */
+            /* NOTE: MCI_CLOSE does stop the music in Vista+ but the original behaviour did not */
+            /* it only closed the handle to the opened device. You could still send MCI commands */
+            /* to a default cdaudio device but if you had used an alias you needed to re-open it. */
         }
 
         if (uMsg == MCI_PLAY)
@@ -307,7 +318,7 @@ MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR 
             {
                 dprintf("    dwFrom: %d\r\n", parms->dwFrom);
 
-                // FIXME: rounding to nearest track
+                /* FIXME: rounding to nearest track */
                 if (time_format == MCI_FORMAT_TMSF)
                 {
                     info.first = MCI_TMSF_TRACK(parms->dwFrom);
@@ -323,7 +334,7 @@ MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR 
 
                     for (int i = 0; i < MAX_TRACKS; i++)
                     {
-                        // FIXME: take closest instead of absolute
+                        /* FIXME: take closest instead of absolute */
                         if (tracks[i].position == parms->dwFrom / 1000)
                         {
                             info.first = i;
@@ -334,7 +345,7 @@ MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR 
                 }
                 else
                 {
-                    // FIXME: not really
+                    /* FIXME: not really */
                     info.first = parms->dwFrom;
                 }
 
@@ -366,7 +377,7 @@ MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR 
 
                     for (int i = info.first; i < MAX_TRACKS; i ++)
                     {
-                        // FIXME: use better matching
+                        /* FIXME: use better matching */
                         if (tracks[i].position + tracks[i].length > parms->dwFrom / 1000)
                         {
                             info.last = i;
@@ -396,6 +407,7 @@ MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR 
                 playing = 0;
                 player = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)player_main, (void *)&info, 0, NULL);
             }
+            Sleep(10); /* A temporary fix. 10ms delay fixes "The Fifth Element Demo" endless play loop... */
         }
 
         if (uMsg == MCI_STOP)
@@ -483,7 +495,7 @@ MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR 
 
                     if (fdwCommand & MCI_TRACK)
                     {
-                        // FIXME: implying milliseconds
+                        /* FIXME: implying milliseconds */
                         parms->dwReturn = tracks[parms->dwTrack].position * 1000;
                     }
                 }
@@ -526,103 +538,157 @@ MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR 
     return MCIERR_UNRECOGNIZED_COMMAND;
 }
 
-// this is really fugly but for christ sake why did anyone use it?!
+/* MCI command strings */
+/* https://docs.microsoft.com/fi-fi/windows/win32/multimedia/multimedia-command-strings */
 MCIERROR WINAPI fake_mciSendStringA(LPCTSTR cmd, LPTSTR ret, UINT cchReturn, HANDLE hwndCallback)
 {
-    printf("MCI: %s\n", cmd);
+    char cmdbuf[1024];
+    char cmp_str[1024];
 
-    if (strstr(cmd, "sysinfo cdaudio quantity"))
+    dprintf("[MCI String = %s]\n", cmd);
+
+    /* copy cmd into cmdbuf */
+    strcpy (cmdbuf,cmd);
+    /* change cmdbuf into lower case */
+    for (int i = 0; cmdbuf[i]; i++)
+    {
+        cmdbuf[i] = tolower(cmdbuf[i]);
+    }
+
+    if (strstr(cmdbuf, "sysinfo cdaudio quantity"))
     {
         dprintf("  Returning quantity: 1\r\n");
         strcpy(ret, "1");
         return 0;
     }
 
-    if (strstr(cmd, "sysinfo cdaudio name"))
+    /* Example: "sysinfo cdaudio name 1 open" returns "cdaudio" or the alias.*/
+    if (strstr(cmdbuf, "sysinfo cdaudio name"))
     {
         dprintf("  Returning name: cdaudio\r\n");
-        strcpy(ret, "cdaudio");
+        sprintf(ret, "%s", alias_s);
         return 0;
     }
 
-    if (strstr(cmd, "stop cdaudio"))
+    /* Handle "stop cdaudio/alias" */
+    sprintf(cmp_str, "stop %s", alias_s);
+    if (strstr(cmdbuf, cmp_str))
     {
         fake_mciSendCommandA(MAGIC_DEVICEID, MCI_STOP, 0, (DWORD_PTR)NULL);
         return 0;
     }
 
-    if (strstr(cmd, "pause cdaudio"))
+    /* Handle "pause cdaudio/alias" */
+    sprintf(cmp_str, "pause %s", alias_s);
+    if (strstr(cmdbuf, cmp_str))
     {
         fake_mciSendCommandA(MAGIC_DEVICEID, MCI_PAUSE, 0, (DWORD_PTR)NULL);
         return 0;
     }
 
-    if (strstr(cmd, "open cdaudio"))
+    /* Look for the use of an alias */
+    /* Example: "open d: type cdaudio alias cd1" */
+    if (strstr(cmdbuf, "type cdaudio alias"))
+    {
+        char *tmp_s = strrchr(cmdbuf, ' ');
+        if (tmp_s && *(tmp_s +1))
+        {
+            sprintf(alias_s, "%s", tmp_s +1);
+        }
+        fake_mciSendCommandA(MAGIC_DEVICEID, MCI_OPEN, 0, (DWORD_PTR)NULL);
+        return 0;
+    }
+
+    if (strstr(cmdbuf, "open cdaudio"))
     {
         fake_mciSendCommandA(MAGIC_DEVICEID, MCI_OPEN, 0, (DWORD_PTR)NULL);
         return 0;
     }
 
-    if (strstr(cmd, "set cdaudio time format milliseconds"))
+    /* reset alias with "close alias" string */
+    sprintf(cmp_str, "close %s", alias_s);
+    if (strstr(cmdbuf, cmp_str))
     {
-        static MCI_SET_PARMS parms;
-        parms.dwTimeFormat = MCI_FORMAT_MILLISECONDS;
-        fake_mciSendCommandA(MAGIC_DEVICEID, MCI_SET, MCI_SET_TIME_FORMAT, (DWORD_PTR)&parms);
+        sprintf(alias_s, "cdaudio");
         return 0;
     }
 
-    if (strstr(cmd, "set cdaudio time format msf"))
-    {
-        static MCI_SET_PARMS parms;
-        parms.dwTimeFormat = MCI_FORMAT_MSF;
-        fake_mciSendCommandA(MAGIC_DEVICEID, MCI_SET, MCI_SET_TIME_FORMAT, (DWORD_PTR)&parms);
-        return 0;
+    /* Handle "set cdaudio/alias time format" */
+    sprintf(cmp_str, "set %s time format", alias_s);
+    if (strstr(cmdbuf, cmp_str)){
+        if (strstr(cmdbuf, "milliseconds"))
+        {
+            static MCI_SET_PARMS parms;
+            parms.dwTimeFormat = MCI_FORMAT_MILLISECONDS;
+            fake_mciSendCommandA(MAGIC_DEVICEID, MCI_SET, MCI_SET_TIME_FORMAT, (DWORD_PTR)&parms);
+            return 0;
+        }
+        if (strstr(cmdbuf, "msf"))
+        {
+            static MCI_SET_PARMS parms;
+            parms.dwTimeFormat = MCI_FORMAT_MSF;
+            fake_mciSendCommandA(MAGIC_DEVICEID, MCI_SET, MCI_SET_TIME_FORMAT, (DWORD_PTR)&parms);
+            return 0;
+        }
+        if (strstr(cmdbuf, "tmsf"))
+        {
+            static MCI_SET_PARMS parms;
+            parms.dwTimeFormat = MCI_FORMAT_TMSF;
+            fake_mciSendCommandA(MAGIC_DEVICEID, MCI_SET, MCI_SET_TIME_FORMAT, (DWORD_PTR)&parms);
+            return 0;
+        }
     }
 
-    if (strstr(cmd, "set cdaudio time format tmsf"))
-    {
-        static MCI_SET_PARMS parms;
-        parms.dwTimeFormat = MCI_FORMAT_TMSF;
-        fake_mciSendCommandA(MAGIC_DEVICEID, MCI_SET, MCI_SET_TIME_FORMAT, (DWORD_PTR)&parms);
-        return 0;
+    /* Handle "status cdaudio/alias" */
+    sprintf(cmp_str, "status %s", alias_s);
+    if (strstr(cmdbuf, cmp_str)){
+        if (strstr(cmdbuf, "number of tracks"))
+        {
+            dprintf("  Returning number of tracks (%d)\r\n", numTracks);
+            sprintf(ret, "%d", numTracks);
+            return 0;
+        }
+        int track = 0;
+        if (sscanf(cmdbuf, "status %*s length track %d", &track) == 1)
+        {
+            static MCI_STATUS_PARMS parms;
+            parms.dwItem = MCI_STATUS_LENGTH;
+            parms.dwTrack = track;
+            fake_mciSendCommandA(MAGIC_DEVICEID, MCI_STATUS, MCI_STATUS_ITEM, (DWORD_PTR)&parms);
+            sprintf(ret, "%d", parms.dwReturn);
+            return 0;
+        }
+        if (sscanf(cmdbuf, "status %*s position track %d", &track) == 1)
+        {
+            static MCI_STATUS_PARMS parms;
+            parms.dwItem = MCI_STATUS_POSITION;
+            parms.dwTrack = track;
+            fake_mciSendCommandA(MAGIC_DEVICEID, MCI_STATUS, MCI_STATUS_ITEM|MCI_TRACK, (DWORD_PTR)&parms);
+            sprintf(ret, "%d", parms.dwReturn);
+            return 0;
+        }
     }
 
-    if (strstr(cmd, "status cdaudio number of tracks"))
-    {
-        dprintf("  Returning number of tracks\r\n");
-        sprintf(ret, "%d", numTracks);
-        return 0;
-    }
-
-    int track = 0;
-    if (sscanf(cmd, "status cdaudio length track %d", &track) == 1)
-    {
-        static MCI_STATUS_PARMS parms;
-        parms.dwItem = MCI_STATUS_LENGTH;
-        parms.dwTrack = track;
-        fake_mciSendCommandA(MAGIC_DEVICEID, MCI_STATUS, MCI_STATUS_ITEM, (DWORD_PTR)&parms);
-        sprintf(ret, "%d", parms.dwReturn);
-        return 0;
-    }
-
-    if (sscanf(cmd, "status cdaudio position track %d", &track) == 1)
-    {
-        static MCI_STATUS_PARMS parms;
-        parms.dwItem = MCI_STATUS_POSITION;
-        parms.dwTrack = track;
-        fake_mciSendCommandA(MAGIC_DEVICEID, MCI_STATUS, MCI_STATUS_ITEM|MCI_TRACK, (DWORD_PTR)&parms);
-        sprintf(ret, "%d", parms.dwReturn);
-        return 0;
-    }
-
+    /* Handle "play cdaudio/alias" */
     int from = -1, to = -1;
-    if (sscanf(cmd, "play cdaudio from %d to %d", &from, &to) == 2)
-    {
-        static MCI_PLAY_PARMS parms;
-        parms.dwFrom = from;
-        parms.dwTo = to;
-        fake_mciSendCommandA(MAGIC_DEVICEID, MCI_PLAY, MCI_FROM|MCI_TO, (DWORD_PTR)&parms);
-        return 0;
+    sprintf(cmp_str, "play %s from", alias_s);
+    if (strstr(cmdbuf, cmp_str)){
+        if (sscanf(cmdbuf, "play %*s from %d to %d", &from, &to) == 2)
+        {
+            static MCI_PLAY_PARMS parms;
+            parms.dwFrom = from;
+            parms.dwTo = to;
+            fake_mciSendCommandA(MAGIC_DEVICEID, MCI_PLAY, MCI_FROM|MCI_TO, (DWORD_PTR)&parms);
+            return 0;
+        }
+        if (sscanf(cmdbuf, "play %*s from %d", &from) == 1)
+        {
+            static MCI_PLAY_PARMS parms;
+            parms.dwFrom = from;
+            fake_mciSendCommandA(MAGIC_DEVICEID, MCI_PLAY, MCI_FROM, (DWORD_PTR)&parms);
+            return 0;
+        }
+        /* Missing: "play cdaudio to" */
     }
 
     return 0;

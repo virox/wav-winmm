@@ -1,3 +1,4 @@
+# ogg-winmm CD Audio Emulator (2020 revision by DD)
 Based on the original "hifi" release of ogg-winmm with the following changes:
 
 - Win8.1/10 support: stubs.c - taken from "bangstk" fork.
@@ -13,6 +14,9 @@ Based on the original "hifi" release of ogg-winmm with the following changes:
 - MCI_NOTIFY message handling. (fixes Civ2 - Test of time tracks not changing)
 - Added make.cmd and renamed source files to "ogg-" instead of "wav-".
 - Added rudimentary MCI_PAUSE support.
+- Ignore Track00.ogg.
+- Accounted for the possibility of pure music cd's.
+- MCI send string implementation of aliases.
 
 TODO:
 - Try to closer match the excellent cdaudio emulation of DxWnd and it's stand alone [CDAudio proxy.](https://sourceforge.net/projects/cdaudio-proxy/)

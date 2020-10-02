@@ -20,3 +20,25 @@ Based on the original "hifi" release of ogg-winmm with the following changes:
 
 TODO:
 - Try to closer match the excellent cdaudio emulation of DxWnd and it's stand alone [CDAudio proxy.](https://sourceforge.net/projects/cdaudio-proxy/)
+
+# Usage:
+
+Place the .dll files:
+*libogg-0.dll*
+*libvorbis-0.dll*
+*libvorbisfile-3.dll*
+*winmm.dll*
+in the main game folder.
+
+Place the .ogg music files in a "Music" sub-folder with the following naming convention:
+*Track02.ogg, Track03.ogg ...*
+Note that numbering usually starts at 02 since the first track is a data track on mixed mode CD's.
+However some games may use a pure music CD with no data tracks in which case you should start numbering from Track01.ogg ...
+
+Music volume can be adjusted by editing winmm.ini and changing the value between 0 - 100. Useful when the games internal music slider does not function properly.
+
+TIP: You can rip the music from your game CD using Windows Media Player as .wav files and then convert them to .ogg using oggenc2 from:
+https://rarewares.org/ogg-oggenc.php
+The cmd prompt command:
+**"for %%a in (*.wav) do oggenc2 %%a"**
+converts all .wav files into .ogg format. (track names must not contain spaces!)

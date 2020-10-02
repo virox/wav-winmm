@@ -24,9 +24,9 @@ TODO:
 # Usage:
 
 Place the .dll files:
-*libogg-0.dll*
-*libvorbis-0.dll*
-*libvorbisfile-3.dll*
+*libogg-0.dll, *
+*libvorbis-0.dll, *
+*libvorbisfile-3.dll, *
 *winmm.dll*
 in the main game folder.
 
@@ -39,6 +39,7 @@ Music volume can be adjusted by editing winmm.ini and changing the value between
 
 TIP: You can rip the music from your game CD using Windows Media Player as .wav files and then convert them to .ogg using oggenc2 from:
 https://rarewares.org/ogg-oggenc.php
+
 The cmd prompt command:
 **"for %%a in (*.wav) do oggenc2 %%a"**
 converts all .wav files into .ogg format. (track names must not contain spaces!)

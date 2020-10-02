@@ -24,10 +24,7 @@ TODO:
 # Usage:
 
 Place the .dll files:
-*libogg-0.dll, *
-*libvorbis-0.dll, *
-*libvorbisfile-3.dll, *
-*winmm.dll*
+*libogg-0.dll, libvorbis-0.dll, libvorbisfile-3.dll, winmm.dll*
 in the main game folder.
 
 Place the .ogg music files in a "Music" sub-folder with the following naming convention:

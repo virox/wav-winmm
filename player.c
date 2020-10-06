@@ -104,7 +104,7 @@ int plr_pump()
         return 0;
 
     int pos = 0;
-    int bufsize = plr_fmt.nAvgBytesPerSec / 4; // 250ms (avg at 500ms) should be enough for everyone
+    int bufsize = plr_fmt.nAvgBytesPerSec / 4; /* 250ms (avg at 500ms) should be enough for everyone */
     char *buf = malloc(bufsize);
 
     while (pos < bufsize)
@@ -126,7 +126,7 @@ int plr_pump()
         if (bytes == OV_EINVAL)
         {
             free(buf);
-            //free(buf);
+            /* free(buf); */
             return 0;
         }
 
@@ -157,9 +157,7 @@ int plr_pump()
         pos += bytes;
     }
 
-    // volume control, kinda nasty
-    
-    // Add volume control with "winmm.ini".
+    /* Add volume override with "winmm.ini". */
     int ogg_winmm_vol = 100;
 
     FILE * fp;
@@ -168,22 +166,22 @@ int plr_pump()
             if (fp != NULL){
             fscanf(fp, "%d", &ogg_winmm_vol);
             fclose(fp);
+            if (ogg_winmm_vol < 0) ogg_winmm_vol = 0;
+            if (ogg_winmm_vol > 100) ogg_winmm_vol = 100;
+            if (ogg_winmm_vol != 100) plr_vol = ogg_winmm_vol;
         }
         /* Else write new ini file */
         else{
         fp = fopen ("winmm.ini", "w+");
         fprintf(fp, "%d\n"
                     "#\n"
-                    "# Winmm.dll emulated CD music volume control.\n"
+                    "# Winmm.dll emulated CD music volume override.\n"
                     "# Change the number to the desired volume level (0-100).", ogg_winmm_vol);
         fclose(fp);
     }
 
-    if (ogg_winmm_vol < 0) ogg_winmm_vol = 0;
-    if (ogg_winmm_vol > 100) ogg_winmm_vol = 100;
-    plr_vol = ogg_winmm_vol;
-    // end of volume control edits.
-    
+    /* volume control, kinda nasty */
+
     int x, end = pos / 2;
     short *sbuf = (short *)buf;
     for (x = 0; x < end; x++)

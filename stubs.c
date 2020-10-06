@@ -8,16 +8,16 @@ HINSTANCE getWinmmHandle()
     return realWinmmDLL;
 }
 
-//watches for the app to close, unloads the library when it does
-//since FreeLibrary is dangerous in DllMain
+/* watches for the app to close, unloads the library when it does */
+/* since FreeLibrary is dangerous in DllMain */
 void ExitMonitor(LPVOID DLLHandle)
 {
     WaitForSingleObject(DLLHandle, INFINITE);
     FreeLibrary(getWinmmHandle());
 }
 
-//if winmm.dll is already loaded, return its handle
-//otherwise, load it
+/* if winmm.dll is already loaded, return its handle */
+/* otherwise, load it */
 HINSTANCE loadRealDLL()
 {
     if (realWinmmDLL)
@@ -26,19 +26,19 @@ HINSTANCE loadRealDLL()
     char winmm_path[MAX_PATH];
 
     GetSystemDirectory(winmm_path, MAX_PATH);
-    strncat(winmm_path, "//winmm.DLL", MAX_PATH);
+    strncat(winmm_path, "\\winmm.DLL", 11); /* fixed gcc overflow warning */
 
     realWinmmDLL = LoadLibrary(winmm_path);
     
-    //start watcher thread to close the library
+    /* start watcher thread to close the library */
     CreateThread(NULL, 500, (LPTHREAD_START_ROUTINE)ExitMonitor, GetCurrentThread(), 0, NULL);
 
     return realWinmmDLL;
 }
 
-//
-//stubs for functions to call from the real winmm.dll
-//
+/**/
+/* stubs for functions to call from the real winmm.dll */
+/**/
 
 LRESULT WINAPI fake_CloseDriver(HDRVR a0, LONG a1, LONG a2)
 {

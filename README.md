@@ -1,4 +1,8 @@
 # ogg-winmm CD Audio Emulator (2020 revision by DD)
+
+v.0.1.0.1 rev2:
+- Fixed an error in the logic which meant in-game music volume sliders were disabled. (winmm.ini now works as a hard override with values 0-99 and 100 means in-game volume adjustment is used)
+
 Based on the original "hifi" release of ogg-winmm with the following changes:
 
 - Win8.1/10 support: stubs.c - taken from "bangstk" fork.

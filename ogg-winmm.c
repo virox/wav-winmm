@@ -175,7 +175,7 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 }
 
 /* MCI commands */
-/* https://docs.microsoft.com/fi-fi/windows/win32/multimedia/multimedia-commands */
+/* https://docs.microsoft.com/windows/win32/multimedia/multimedia-commands */
 MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR fdwCommand, DWORD_PTR dwParam)
 {
     char cmdbuf[1024];
@@ -539,7 +539,7 @@ MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR 
 }
 
 /* MCI command strings */
-/* https://docs.microsoft.com/fi-fi/windows/win32/multimedia/multimedia-command-strings */
+/* https://docs.microsoft.com/windows/win32/multimedia/multimedia-command-strings */
 MCIERROR WINAPI fake_mciSendStringA(LPCTSTR cmd, LPTSTR ret, UINT cchReturn, HANDLE hwndCallback)
 {
     char cmdbuf[1024];

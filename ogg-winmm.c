@@ -679,6 +679,11 @@ MCIERROR WINAPI fake_mciSendStringA(LPCTSTR cmd, LPTSTR ret, UINT cchReturn, HAN
             parms.dwFrom = from;
             parms.dwTo = to;
             fake_mciSendCommandA(MAGIC_DEVICEID, MCI_PLAY, MCI_FROM|MCI_TO, (DWORD_PTR)&parms);
+            
+            if (strstr(cmdbuf, "notify")){
+            notify = 1; /* storing the notify request */
+            }
+            
             return 0;
         }
         if (sscanf(cmdbuf, "play %*s from %d", &from) == 1)

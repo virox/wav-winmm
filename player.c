@@ -233,3 +233,20 @@ int plr_pump()
 
     return 1;
 }
+
+/* TODO: */
+/*
+int plr_seek(int sec)
+{
+    int len = (int)ov_time_total(&plr_vf, -1);
+    if(sec<0) sec=0;
+    if(sec > len) sec = len;
+    return ov_time_seek(&plr_vf, (double)sec);
+}
+
+int plr_tell()
+{
+    int tpos = (int)ov_time_tell(&plr_vf);
+    return tpos;
+}
+*/

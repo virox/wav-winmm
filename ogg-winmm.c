@@ -755,6 +755,19 @@ MCIERROR WINAPI fake_mciSendStringA(LPCTSTR cmd, LPTSTR ret, UINT cchReturn, HAN
             strcpy(ret, "TRUE");
             return 0;
         }
+        /* Add: Mode handling */
+        if (strstr(cmdbuf, "mode"))
+        {
+            if(paused || !playing){
+                dprintf("   -> stopped\r\n");
+                strcpy(ret, "stopped");
+                }
+            else{
+                dprintf("   -> playing\r\n");
+                strcpy(ret, "playing");
+            }
+            return 0;
+        }
     }
 
     /* Handle "play cdaudio/alias" */

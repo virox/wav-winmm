@@ -4,6 +4,8 @@ ogg-winmm is a wrapper of "winmm.dll", which is used by many games and programs 
 
 ogg-winmm emulates the CD-DA audio tracks by reading them from ogg files instead of audio tracks on a CD-ROM.
 
+ogg-winmm also provides separate volume control for CDDA/MIDI/WAVE, which has been missing in Windows Vista/7/8/10.
+
 # Usage:
 
 1. Rip the audio tracks from the CD and encode them to ogg files, following naming convention:
@@ -13,11 +15,13 @@ ogg-winmm emulates the CD-DA audio tracks by reading them from ogg files instead
   
   However some games may use a pure music CD with no data tracks in which case you should start numbering them from "Track01.ogg".
 
-2. Extract the dll file(s) to the game folder where the game's main executable file is located.
+2. Extract the dll file and the ini file to the game folder where the game's main executable file is located.
 
 3. Create a subfolder called "Music" there and put the ogg files in it. 
 
-4. Run the game and enjoy the emulated CD audio.
+4. (Optional) Override the volume for CDDA/MIDI/WAVE in "winmm.ini" file if desired.
+
+5. Run the game and enjoy the emulated CD audio.
 
 # Building:
 
@@ -29,6 +33,10 @@ ogg-winmm emulates the CD-DA audio tracks by reading them from ogg files instead
   - libvorbis (https://github.com/xiph/vorbis.git)
 
 # Revisions:
+
+v.2021.07.10:
+- Implement separate volume control for CDDA/MIDI/WAVE.
+  This is necessary because Windows does not provide any method to separate the volume control of CDDA/MIDI/WAVE ever since Vista.
 
 v.2021.07.09:
 - Fix the start tick of each track.

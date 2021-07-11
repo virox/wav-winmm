@@ -3,14 +3,14 @@
 #include <ctype.h>
 #include "player.h"
 
-static int midiVol = -1;
-static int waveVol = -1;
+static float midiVol = -1.0;
+static float waveVol = -1.0;
 static int waveBits = -1;
 
 static HINSTANCE realWinmmDLL = NULL;
 
-void stub_midivol(int vol) { midiVol = vol < 0 || vol > 100  ? -1 : vol; }
-void stub_wavevol(int vol) { waveVol = vol < 0 || vol > 100  ? -1 : vol; }
+void stub_midivol(int vol) { midiVol = vol < 0 || vol > 99  ? -1.0 : vol / 100.0; }
+void stub_wavevol(int vol) { waveVol = vol < 0 || vol > 99  ? -1.0 : vol / 100.0; }
 
 HINSTANCE getWinmmHandle()
 {
@@ -52,6 +52,7 @@ MMRESULT WINAPI fake_midiStreamOut(HMIDISTRM a0, LPMIDIHDR a1, UINT a2)
 	if (funcp == NULL)
 		funcp = (void*)GetProcAddress(loadRealDLL(), "midiStreamOut");
 
+#ifdef MIDI_VELOCITY_SCALING
 	if (midiVol != -1 && a1 && a1->lpData) {
 		for (int i = 0, j = a1->dwBytesRecorded; i < j; i += sizeof(DWORD)*3) {
 			MIDIEVENT *pe = (MIDIEVENT *)(a1->lpData + i);
@@ -62,14 +63,15 @@ MMRESULT WINAPI fake_midiStreamOut(HMIDISTRM a0, LPMIDIHDR a1, UINT a2)
 				char *pv = (char *)&pe->dwEvent; 
 				if (!(pe->dwEvent&0x80)) {
 					/* running status */
-					pv[1] *= midiVol / 100.0;
+					pv[1] *= midiVol;
 				} else if ((pe->dwEvent&0xF0) < 0xB0) {
 					/* new voice status */
-					pv[2] *= midiVol / 100.0;
+					pv[2] *= midiVol;
 				}
 			}
 		}
 	}
+#endif
 
 	return (*funcp)(a0, a1, a2);
 }
@@ -80,7 +82,8 @@ MMRESULT WINAPI fake_waveOutOpen(LPHWAVEOUT a0, UINT a1, LPCWAVEFORMATEX a2, DWO
 	if (funcp == NULL)
 		funcp = (void*)GetProcAddress(loadRealDLL(), "waveOutOpen");
 
-	/* FIXME: waveOutOpen can be called multiple times of different sample bits for sound mixing */
+	/* FIXME: waveOutOpen can be called multiple times with different sample bits for sound mixing */
+	/* However, it is almost always to be 16-bits; extremely rarely to be 8-bits or of a mixed-up */
 	if (a2) waveBits = a2->wBitsPerSample;
 	return (*funcp)(a0, a1, a2, a3, a4, a5);
 }
@@ -93,7 +96,7 @@ MMRESULT WINAPI fake_waveOutWrite(HWAVEOUT a0, LPWAVEHDR a1, UINT a2)
 		funcp = (void*)GetProcAddress(loadRealDLL(), "waveOutWrite");
 
 	/* let owr own OGG wave pass through */
-	if (waveVol != -1 && a1 && a1->lpData && a1->dwUser != 0xBEEF7777) {
+	if ((waveVol != -1 || midiVol != -1) && a1 && a1->lpData && a1->dwUser != 0xBEEF7777) {
 		/* Windows is f**ked up. MIDI synth driver converts MIDI to WAVE and then calls winmm.waveOutWrite!!! */
 		void *addr = __builtin_return_address(0);
 		char caller[MAX_PATH];
@@ -101,20 +104,24 @@ MMRESULT WINAPI fake_waveOutWrite(HWAVEOUT a0, LPWAVEHDR a1, UINT a2)
 		VirtualQuery(addr, &mbi, sizeof(MEMORY_BASIC_INFORMATION));
 		GetModuleFileName(mbi.AllocationBase, caller, MAX_PATH);
 
-		if (!strstr(strrchr(caller, '\\'), ".drv")) {
-			char *wave8;
+		float vol;
+		if (strstr(strrchr(caller, '\\'), ".drv")) vol = midiVol;
+		else vol = waveVol;
+
+		if (vol != -1) {
 			short *wave16;
+			char *wave8;
 			switch (waveBits) {
-				case 8:
-					wave8 = (char *)a1->lpData;
-					for (int i = 0; i < a1->dwBufferLength; i++) {
-						wave8[i] *= waveVol / 100.0;
-					}
-					break;
 				case 16:
 					wave16 = (short *)a1->lpData;
-					for (int i = 0; i < a1->dwBufferLength/2; i++) {
-						wave16[i] *= waveVol / 100.0;
+					for (int i = 0, j = a1->dwBufferLength/2; i < j; i++) {
+						wave16[i] *= vol;
+					}
+					break;
+				case 8:
+					wave8 = (char *)a1->lpData;
+					for (int i = 0, j = a1->dwBufferLength; i < j; i++) {
+						wave8[i] *= vol;
 					}
 					break;
 				default:

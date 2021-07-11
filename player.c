@@ -7,7 +7,7 @@ HWAVEOUT        plr_hwo         = NULL;
 OggVorbis_File  plr_vf;
 HANDLE          plr_ev          = NULL;
 int             plr_cnt         = 0;
-int             plr_vol         = -1;
+float           plr_vol         = -1.0;
 WAVEHDR         *plr_buffers[3] = { NULL, NULL, NULL };
 
 void plr_stop()
@@ -46,8 +46,8 @@ void plr_stop()
 
 void plr_volume(int vol)
 {
-	if (vol < 0 || vol > 100) plr_vol = -1;
-	else plr_vol = vol;
+	if (vol < 0 || vol > 99) plr_vol = -1.0;
+	else plr_vol = vol / 100.0;
 }
 
 int plr_length(const char *path)
@@ -160,7 +160,7 @@ int plr_pump()
 	if (plr_vol != -1) {
 		short *sbuf = (short *)buf;
 		for (int x = 0, end = pos / 2; x < end; x++)
-			sbuf[x] *= plr_vol / 100.0;
+			sbuf[x] *= plr_vol;
 	}
 
 	WAVEHDR *header = malloc(sizeof(WAVEHDR));

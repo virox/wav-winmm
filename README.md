@@ -11,9 +11,9 @@ ogg-winmm also provides separate volume control for CDDA/MIDI/WAVE, which has be
 1. Rip the audio tracks from the CD and encode them to ogg files, following naming convention:
 > **Track02.ogg, Track03.ogg, Track04.ogg, ...**
 
-  Note that numbering usually starts from 02 since the first track is a data track on mixed mode CD's.
+  Note the numbering usually starts from 02 since the first track is a data track on mixed mode CD's.
   
-  However some games may use a pure music CD with no data tracks in which case you should start numbering them from "Track01.ogg".
+  In rare cases the games may use a pure audio CD with no data tracks in which case you should start numbering them from "Track01.ogg".
 
 2. Extract the dll file and the ini file to the game folder where the game's main executable file is located.
 
@@ -33,6 +33,9 @@ ogg-winmm also provides separate volume control for CDDA/MIDI/WAVE, which has be
   - libvorbis (https://github.com/xiph/vorbis.git)
 
 # Revisions:
+
+v.2021.07.11:
+- Implement an alternative method to control MIDI volume, which should make scaling coefficients identical to CDDA/WAVE volume control.
 
 v.2021.07.10:
 - Implement separate volume control for CDDA/MIDI/WAVE.

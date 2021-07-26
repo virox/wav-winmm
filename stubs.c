@@ -53,7 +53,7 @@ MMRESULT WINAPI fake_midiStreamOut(HMIDISTRM a0, LPMIDIHDR a1, UINT a2)
 		funcp = (void*)GetProcAddress(loadRealDLL(), "midiStreamOut");
 
 #ifdef MIDI_VELOCITY_SCALING
-	if (midiVol != -1 && a1 && a1->lpData) {
+	if (midiVol >= 0 && a1 && a1->lpData) {
 		for (int i = 0, j = a1->dwBytesRecorded; i < j; i += sizeof(DWORD)*3) {
 			MIDIEVENT *pe = (MIDIEVENT *)(a1->lpData + i);
 			if (pe->dwEvent & MEVT_F_LONG) {
@@ -96,7 +96,7 @@ MMRESULT WINAPI fake_waveOutWrite(HWAVEOUT a0, LPWAVEHDR a1, UINT a2)
 		funcp = (void*)GetProcAddress(loadRealDLL(), "waveOutWrite");
 
 	/* let owr own OGG wave pass through */
-	if ((waveVol != -1 || midiVol != -1) && a1 && a1->lpData && a1->dwUser != 0xBEEF7777) {
+	if ((waveVol >= 0 || midiVol >= 0 ) && a1 && a1->lpData && a1->dwUser != 0xBEEF7777) {
 		/* Windows is f**ked up. MIDI synth driver converts MIDI to WAVE and then calls winmm.waveOutWrite!!! */
 		void *addr = __builtin_return_address(0);
 		char caller[MAX_PATH];
@@ -104,11 +104,13 @@ MMRESULT WINAPI fake_waveOutWrite(HWAVEOUT a0, LPWAVEHDR a1, UINT a2)
 		VirtualQuery(addr, &mbi, sizeof(MEMORY_BASIC_INFORMATION));
 		GetModuleFileName(mbi.AllocationBase, caller, MAX_PATH);
 
-		float vol;
-		if (strstr(strrchr(caller, '\\'), ".drv")) vol = midiVol;
-		else vol = waveVol;
+		float vol = -1.0;
+		char *pos = strrchr(caller, '\\');
+		/* Mixer: msacm32.drv */
+		if (strstr(pos, "wdmaud.drv")) vol = midiVol;
+		else if (!strstr(pos, ".drv")) vol = waveVol;
 
-		if (vol != -1) {
+		if (vol >= 0) {
 			short *wave16;
 			char *wave8;
 			switch (waveBits) {

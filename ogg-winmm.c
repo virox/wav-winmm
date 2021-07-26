@@ -140,8 +140,8 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 
 			/* 100% volume is equivalent to no override */
 			if (cddaVol < 0 || cddaVol > 99 ) cddaVol = -1;
-			if (midiVol < 0 || midiVol > 99 ) midiVol= -1;
-			if (waveVol < 0 || waveVol > 99 ) waveVol= -1;
+			if (midiVol < 0 || midiVol > 99 ) midiVol = -1;
+			if (waveVol < 0 || waveVol > 99 ) waveVol = -1;
 
 			plr_volume(cddaVol);
 			stub_midivol(midiVol);

@@ -247,6 +247,7 @@ MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR 
 				parms->wDeviceID = MAGIC_DEVICEID;
 				return 0;
 			}
+			else return relay_mciSendCommandA(IDDevice, uMsg, fdwCommand, dwParam);
 		}
 
 		if (fdwCommand & MCI_OPEN_TYPE && !(fdwCommand & MCI_OPEN_TYPE_ID))
@@ -260,6 +261,7 @@ MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR 
 				parms->wDeviceID = MAGIC_DEVICEID;
 				return 0;
 			}
+			else return relay_mciSendCommandA(IDDevice, uMsg, fdwCommand, dwParam);
 		}
 
 	}
@@ -623,22 +625,23 @@ MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR 
 
 		return 0;
 	}
+	else return relay_mciSendCommandA(IDDevice, uMsg, fdwCommand, dwParam);
 
 	/* fallback */
-	return MCIERR_UNRECOGNIZED_COMMAND;
+	/* return MCIERR_UNRECOGNIZED_COMMAND; */
 }
 
 /* MCI command strings */
 /* https://docs.microsoft.com/windows/win32/multimedia/multimedia-command-strings */
-MCIERROR WINAPI fake_mciSendStringA(LPCTSTR cmd, LPTSTR ret, UINT cchReturn, HANDLE hwndCallback)
+MCIERROR WINAPI fake_mciSendStringA(LPCSTR cmd, LPSTR ret, UINT cchReturn, HANDLE hwndCallback)
 {
-	char cmdbuf[1024];
-	char cmp_str[1024];
+	char cmdbuf[1000];
+	char cmp_str[1000];
 
 	dprintf("[MCI String = %s]\n", cmd);
 
 	/* copy cmd into cmdbuf */
-	strcpy (cmdbuf,cmd);
+	strcpy (cmdbuf, cmd);
 	/* change cmdbuf into lower case */
 	for (int i = 0; cmdbuf[i]; i++)
 	{
@@ -824,7 +827,8 @@ MCIERROR WINAPI fake_mciSendStringA(LPCTSTR cmd, LPTSTR ret, UINT cchReturn, HAN
 		}
 	}
 
-	return 0;
+	return relay_mciSendStringA(cmd, ret, cchReturn, hwndCallback);
+	/* return 0; */
 }
 
 UINT WINAPI fake_auxGetNumDevs()

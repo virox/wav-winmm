@@ -34,6 +34,11 @@ ogg-winmm also provides separate volume control for CDDA/MIDI/WAVE, which has be
 
 # Revisions:
 
+v.2021.07.26:
+- Relay MCI commands if they are not targerting cdaudio device.
+- Add more stub functions to support more games.
+- Filter MIDI source by the full driver name (wdmaud.drv).
+
 v.2021.07.11:
 - Implement an alternative method to control MIDI volume, which should make scaling coefficients identical to CDDA/WAVE volume control.
 

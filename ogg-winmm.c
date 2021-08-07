@@ -53,9 +53,8 @@ HANDLE player = NULL;
 char alias_s[] = "cdaudio";
 char music_path[MAX_PATH];
 
-int playloop = 0;
+int command = 0;
 int playing = 0;
-int paused = 0;
 int notify = 0;
 int current  = 1;
 int firstTrack = -1;
@@ -83,10 +82,11 @@ int player_main(struct play_info *info)
 	if(current<firstTrack)current = firstTrack;
 	dprintf("OGG Player logic: %d to %d\n", first, last);
 
-	while (current <= last && playing)
+	while (current <= last && command == MCI_PLAY)
 	{
 		dprintf("Next track: %s\n", tracks[current].path);
 		tracks[current].tick = clock();
+		playing = 1;
 		plr_play(tracks[current].path);
 
 		while (1)
@@ -94,21 +94,17 @@ int player_main(struct play_info *info)
 			if (plr_pump() == 0)
 				break;
 
-			if (!playing)
+			if (command != MCI_PLAY)
 			{
+				playing = 0;
 				return 0;
 			}
 		}
 		current++;
 	}
 
-	playloop = 0; /* IMPORTANT: Can not update the 'playing' variable from inside the 
-			 thread since it's tied to the threads while loop condition and
-			 can cause thread sync issues and a crash/deadlock. 
-			 (For example: 'WinQuake' startup) */
-
 	/* Sending notify successful message:*/
-	if(notify && !paused)
+	if (notify)
 	{
 		dprintf("  Sending MCI_NOTIFY_SUCCESSFUL message...\n");
 		SendMessageA((HWND)0xffff, MM_MCINOTIFY, MCI_NOTIFY_SUCCESSFUL, 0xBEEF);
@@ -117,6 +113,8 @@ int player_main(struct play_info *info)
 		   MCI_STATUS_MODE does not update to show that the track is no longer playing.
 		   Bug or broken design in mcicda.dll (also noted by the Wine team) */
 	}
+
+	playing = 0;
 	return 0;
 }
 
@@ -364,8 +362,7 @@ MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR 
 					if (info.first == 0)
 					{
 						plr_stop();
-						playing = 0;
-						playloop = 0;
+						command = MCI_STOP;
 						return 0;
 					}
 
@@ -425,16 +422,14 @@ MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR 
 					info.last = lastTrack;
 			}
 
-			if ((info.first && (fdwCommand & MCI_FROM)) || (info.last && (fdwCommand & MCI_TO)) || (paused))
+			if ((info.first && (fdwCommand & MCI_FROM)) || (info.last && (fdwCommand & MCI_TO)))
 			{
 				if (player)
 				{
 					TerminateThread(player, 0);
 				}
 
-				playing = 1;
-				playloop = 1;
-				paused = 0;
+				command = MCI_PLAY;
 				player = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)player_main, (void *)&info, 0, NULL);
 			}
 		}
@@ -442,21 +437,18 @@ MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR 
 		if (uMsg == MCI_STOP)
 		{
 			dprintf("  MCI_STOP\n");
-			playing = 0;
-			playloop = 0;
 			plr_stop(); /* Make STOP command instant. */
+			command = MCI_STOP;
 			info.first = firstTrack; /* Reset first track */
 			current  = 1; /* Reset current track*/
 		}
 
-		/* FIXME: MCICDA does not support resume, so pause should be equivalent to stop */
+		/* FIXME: We do not support resume yet, so pause should be equivalent to stop */
 		if (uMsg == MCI_PAUSE)
 		{
 			dprintf("  MCI_PAUSE\n");
 			plr_stop();
-			playing = 0;
-			playloop = 0;
-			paused = 1;
+			command = MCI_PAUSE;
 		}
 
 		/* Handling of MCI_SYSINFO (Heavy Gear, Battlezone2, Interstate 76) */
@@ -514,26 +506,21 @@ MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR 
 					/* Get track length */
 					if(fdwCommand & MCI_TRACK)
 					{
-						int seconds = tracks[parms->dwTrack].length;
-						if (time_format == MCI_FORMAT_MILLISECONDS)
-						{
+						unsigned int seconds = tracks[parms->dwTrack].length;
+						if (time_format == MCI_FORMAT_MILLISECONDS) {
 							parms->dwReturn = seconds * 1000;
-						}
-						else
-						{
-							parms->dwReturn = MCI_MAKE_MSF(seconds / 60, seconds % 60, 0);
+						} else {
+							parms->dwReturn = MCI_MAKE_MSF(seconds/60, seconds%60, 0);
 						}
 					}
 					/* Get full length */
 					else
 					{
-						if (time_format == MCI_FORMAT_MILLISECONDS)
-						{
-							parms->dwReturn = (tracks[lastTrack].position + tracks[lastTrack].length) * 1000;
-						}
-						else
-						{
-							parms->dwReturn = MCI_MAKE_TMSF(lastTrack, 0, 0, 0);
+						unsigned int seconds = tracks[lastTrack].position + tracks[lastTrack].length;
+						if (time_format == MCI_FORMAT_MILLISECONDS) {
+							parms->dwReturn = seconds * 1000;
+						} else {
+							parms->dwReturn = MCI_MAKE_MSF(seconds/60, seconds%60, 0);
 						}
 					}
 				}
@@ -568,20 +555,24 @@ MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR 
 
 					if (fdwCommand & MCI_TRACK)
 					{
-						if (time_format == MCI_FORMAT_MILLISECONDS)
-							/* FIXME: implying milliseconds */
-							parms->dwReturn = tracks[parms->dwTrack].position * 1000;
-						else /* TMSF */
+						unsigned int seconds = tracks[parms->dwTrack].position;
+						if (time_format == MCI_FORMAT_MILLISECONDS) {
+							parms->dwReturn = seconds * 1000;
+						} else if (time_format == MCI_FORMAT_MSF) {
+							parms->dwReturn = MCI_MAKE_MSF(seconds/60, seconds%60, 0);
+						} else { /* TMSF */
 							parms->dwReturn = MCI_MAKE_TMSF(parms->dwTrack, 0, 0, 0);
+						}
 					}
 					else {
-						if (time_format == MCI_FORMAT_MILLISECONDS)
-							/* FIXME: get current realtime play position */
-							parms->dwReturn = tracks[current].position * 1000;
-						else { /* TMSF */
-							unsigned int ms = playing ? (clock() - tracks[current].tick) * 1000 / CLOCKS_PER_SEC : 0;
+						unsigned int ms = playing ? (clock() - tracks[current].tick) * 1000 / CLOCKS_PER_SEC : 0;
+						if (time_format == MCI_FORMAT_MILLISECONDS) {
+							parms->dwReturn = ms;
+						} else if (time_format == MCI_FORMAT_MSF) {
+							parms->dwReturn = MCI_MAKE_MSF(ms/60000%100, ms%60000/1000, ms%1000/13.5);
+						} else { /* TMSF */
 							/* for CD-DA, frames(sectors) range from 0 to 74  */
-							parms->dwReturn = MCI_MAKE_TMSF(current%100, ms/60000%100, ms%60000/1000, ms%1000/13.5);
+							parms->dwReturn = MCI_MAKE_TMSF(current, ms/60000%100, ms%60000/1000, ms%1000/13.5);
 						}
 					}
 				}
@@ -590,14 +581,8 @@ MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR 
 				{
 					dprintf("      MCI_STATUS_MODE\n");
 
-					if(paused){ /* Handle paused state (actually the same as stopped)*/
-						dprintf("        we are paused\n");
-						parms->dwReturn = MCI_MODE_STOP;
-					}
-					else{
-						dprintf("        we are %s\n", playloop ? "playing" : "NOT playing");
-						parms->dwReturn = playloop ? MCI_MODE_PLAY : MCI_MODE_STOP;
-					}
+					dprintf("        we are %s\n", playing ? "playing" : "NOT playing");
+					parms->dwReturn = playing ? MCI_MODE_PLAY : MCI_MODE_STOP;
 				}
 
 				if (parms->dwItem == MCI_STATUS_READY)
@@ -784,7 +769,7 @@ MCIERROR WINAPI fake_mciSendStringA(LPCSTR cmd, LPSTR ret, UINT cchReturn, HANDL
 		/* Add: Mode handling */
 		if (strstr(cmdbuf, "mode"))
 		{
-			if(paused || !playing){
+			if(!playing){
 				dprintf("   -> stopped\n");
 				strcpy(ret, "stopped");
 			}

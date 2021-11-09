@@ -34,6 +34,13 @@ ogg-winmm also provides separate volume control for CDDA/MIDI/WAVE, which has be
 
 # Revisions:
 
+v.2021.11.10:
+- Completely rewrite player control logic.
+- Use persistent thread to improve performance.
+- Use persistent buffer to improve performance.
+- Fix various crash/freeze scenarios related to thread.
+- Fix various memory leak scenarios related to buffer.
+
 v.2021.08.08:
 - Fix MCI_STATUS_LENGTH and MCI_STATUS_POSITION.
 - Optimize player thread control.

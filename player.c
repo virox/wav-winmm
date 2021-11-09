@@ -1,48 +1,23 @@
-#include <vorbis/vorbisfile.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include <windows.h>
+#include <vorbis/vorbisfile.h>
 
-WAVEFORMATEX    plr_fmt;
-HWAVEOUT        plr_hwo         = NULL;
-OggVorbis_File  plr_vf;
-HANDLE          plr_ev          = NULL;
-int             plr_cnt         = 0;
-float           plr_vol         = -1.0;
-WAVEHDR         *plr_buffers[3] = { NULL, NULL, NULL };
+#define WAV_BUF_CNT	(2)		// Dual buffer
+#define WAV_BUF_LEN	(48000*2)	// 48000Hz, 16-bit, 2-channel, 1/2 second buffer
 
-void plr_stop()
-{
-	plr_cnt = 0;
+bool		plr_run			= false;
+bool		plr_bsy			= false;
+float		plr_vol			= -1.0;
 
-	if (plr_vf.datasource)
-		ov_clear(&plr_vf);
-
-	if (plr_ev)
-	{
-		CloseHandle(plr_ev);
-		plr_ev = NULL;
-	}
-
-	if (plr_hwo)
-	{
-		waveOutReset(plr_hwo);
-
-		int i;
-		for (i = 0; i < 3; i++)
-		{
-			if (plr_buffers[i] && plr_buffers[i]->dwFlags & WHDR_DONE)
-			{
-				waveOutUnprepareHeader(plr_hwo, plr_buffers[i], sizeof(WAVEHDR));
-				free(plr_buffers[i]->lpData);
-				free(plr_buffers[i]);
-				plr_buffers[i] = NULL;
-			}
-		}
-
-		waveOutClose(plr_hwo);
-		plr_hwo = NULL;
-	}
-}
+HWAVEOUT	plr_hw	 		= NULL;
+HANDLE		plr_ev  		= NULL;
+OggVorbis_File	plr_vf			= {0};
+WAVEFORMATEX	plr_fmt			= {0};
+int		plr_que			= 0;
+int		plr_sta[WAV_BUF_CNT]	= {0};
+WAVEHDR		plr_hdr[WAV_BUF_CNT]	= {0};
+char		plr_buf[WAV_BUF_CNT][WAV_BUF_LEN];
 
 void plr_volume(int vol)
 {
@@ -54,8 +29,7 @@ int plr_length(const char *path)
 {
 	OggVorbis_File  vf;
 
-	if (ov_fopen(path, &vf) != 0)
-		return 0;
+	if (ov_fopen(path, &vf) != 0) return 0;
 
 	int ret = (int)ov_time_total(&vf, -1);
 
@@ -64,17 +38,46 @@ int plr_length(const char *path)
 	return ret;
 }
 
+void plr_stop()
+{
+	if (!plr_run) return;
+
+	plr_run = false;
+
+	if (plr_ev) {
+		SetEvent(plr_ev);
+		while (plr_bsy) {
+			Sleep(0);
+		}
+	}
+
+	if (plr_vf.datasource) {
+		ov_clear(&plr_vf);
+	}
+
+	if (plr_hw) {
+		waveOutReset(plr_hw);
+		for (int i = 0; i < WAV_BUF_CNT; i++) {
+			waveOutUnprepareHeader(plr_hw, &plr_hdr[i], sizeof(WAVEHDR));
+		}
+		waveOutClose(plr_hw);
+		plr_hw = NULL;
+	}
+
+	if (plr_ev) {
+		CloseHandle(plr_ev);
+		plr_ev = NULL;
+	}
+}
+
 int plr_play(const char *path)
 {
 	plr_stop();
 
-	if (ov_fopen(path, &plr_vf) != 0)
-		return 0;
+	if (ov_fopen(path, &plr_vf) != 0) return 0;
 
 	vorbis_info *vi = ov_info(&plr_vf, -1);
-
-	if (!vi)
-	{
+	if (!vi) {
 		ov_clear(&plr_vf);
 		return 0;
 	}
@@ -85,127 +88,101 @@ int plr_play(const char *path)
 	plr_fmt.wBitsPerSample  = 16;
 	plr_fmt.nBlockAlign     = plr_fmt.nChannels * (plr_fmt.wBitsPerSample / 8);
 	plr_fmt.nAvgBytesPerSec = plr_fmt.nBlockAlign * plr_fmt.nSamplesPerSec;
-	plr_fmt.cbSize          = 0;
 
 	plr_ev = CreateEvent(NULL, 0, 1, NULL);
 
-	if (waveOutOpen(&plr_hwo, WAVE_MAPPER, &plr_fmt, (DWORD_PTR)plr_ev, 0, CALLBACK_EVENT) != MMSYSERR_NOERROR)
-	{
+	if (waveOutOpen(&plr_hw, WAVE_MAPPER, &plr_fmt, (DWORD_PTR)plr_ev, 0, CALLBACK_EVENT) != MMSYSERR_NOERROR) {
+		ov_clear(&plr_vf);
+		CloseHandle(plr_ev);
+		plr_ev = NULL;
 		return 0;
 	}
 
+	plr_que = 0;
+	for (int i = 0; i < WAV_BUF_CNT; i++) {
+		plr_sta[i] = 0;
+		plr_hdr[i].dwFlags = WHDR_DONE;
+	}
+
+	plr_run = true;
 	return 1;
 }
 
 int plr_pump()
 {
-	if (!plr_vf.datasource)
+	if (!plr_run || !plr_vf.datasource) return 0;
+
+	plr_bsy = true;
+
+	if ((WaitForSingleObject(plr_ev, INFINITE) != 0) || !plr_run) {
+		plr_bsy = false;
 		return 0;
+	}
 
-	int pos = 0;
-	int bufsize = plr_fmt.nAvgBytesPerSec / 4; /* 250ms (avg at 500ms) should be enough for everyone */
-	char *buf = malloc(bufsize);
-
-	while (pos < bufsize)
-	{
-		long bytes = ov_read(&plr_vf, buf + pos, bufsize - pos, 0, 2, 1, NULL);
-
-		if (bytes == OV_HOLE)
-		{
-			free(buf);
+	for (int n = 0, i = plr_que; n < WAV_BUF_CNT; n++, i = (i+1) % WAV_BUF_CNT) {
+		if (plr_sta[i] != 0) {
 			continue;
 		}
 
-		if (bytes == OV_EBADLINK)
-		{
-			free(buf);
-			return 0;
+		WAVEHDR *hdr = &plr_hdr[i];
+		if (!(hdr->dwFlags & WHDR_DONE)) {
+			break;
 		}
 
-		if (bytes == OV_EINVAL)
-		{
-			free(buf);
-			/* free(buf); */
-			return 0;
-		}
+		char *buf = plr_buf[i];
+		int pos = 0, size = plr_fmt.nSamplesPerSec * 2;
+		while (pos < size) {
+			long bytes = ov_read(&plr_vf, buf + pos, size - pos, 0, 2, 1, NULL);
 
-		if (bytes == 0)
-		{
-			free(buf);
-
-			int i, in_queue = 0;
-			for (i = 0; i < 3; i++)
-			{
-				if (plr_buffers[i] && plr_buffers[i]->dwFlags & WHDR_DONE)
-				{
-					waveOutUnprepareHeader(plr_hwo, plr_buffers[i], sizeof(WAVEHDR));
-					free(plr_buffers[i]->lpData);
-					free(plr_buffers[i]);
-					plr_buffers[i] = NULL;
-				}
-
-				if (plr_buffers[i])
-					in_queue++;
+			if (bytes == OV_HOLE) {
+				continue;
+			} else if ((bytes == OV_EBADLINK) || (bytes == OV_EINVAL)) {
+				pos = 0;
+				break;
+			} else if (bytes == 0) {
+				break;
 			}
 
-			Sleep(100);
-
-			return !(in_queue == 0);
+			pos += bytes;
 		}
 
-		pos += bytes;
-	}
-
-	/* volume control, kinda nasty */
-	if (plr_vol != -1) {
-		short *sbuf = (short *)buf;
-		for (int x = 0, end = pos / 2; x < end; x++)
-			sbuf[x] *= plr_vol;
-	}
-
-	WAVEHDR *header = malloc(sizeof(WAVEHDR));
-	header->lpData           = buf;
-	header->dwBufferLength   = pos;
-	header->dwUser           = 0xBEEF7777; /* our lucky identifier */
-	header->dwFlags          = plr_cnt == 0 ? WHDR_BEGINLOOP : 0;
-	header->dwLoops          = 0;
-	header->lpNext           = NULL;
-	header->reserved         = 0;
-
-	waveOutPrepareHeader(plr_hwo, header, sizeof(WAVEHDR));
-
-	if (plr_cnt > 1)
-	{
-		WaitForSingleObject(plr_ev, INFINITE);
-	}
-
-	int queued = 0;
-	for (int i = 0; i < 3; i++)
-	{
-		if (plr_buffers[i] && plr_buffers[i]->dwFlags & WHDR_DONE)
-		{
-			waveOutUnprepareHeader(plr_hwo, plr_buffers[i], sizeof(WAVEHDR));
-			free(plr_buffers[i]->lpData);
-			free(plr_buffers[i]);
-			plr_buffers[i] = NULL;
+		if (pos == 0) {
+			plr_run = false;
+			plr_bsy = false;
+			return 0;
 		}
 
-		if (!queued && plr_buffers[i] == NULL)
-		{
-			waveOutWrite(plr_hwo, header, sizeof(WAVEHDR));
-			plr_buffers[i] = header;
-			queued = 1;
+		/* volume control, kinda nasty */
+		if (plr_vol != -1) {
+			short *sbuf = (short *)buf;
+			for (int j = 0, end = pos / 2; j < end; j++)
+				sbuf[j] *= plr_vol;
 		}
+
+		waveOutUnprepareHeader(plr_hw, hdr, sizeof(WAVEHDR));
+		hdr->lpData		= buf;
+		hdr->dwBufferLength	= pos;
+		hdr->dwUser		= 0xBEEF7777; /* our lucky identifier */
+		hdr->dwFlags		= 0;
+		hdr->dwLoops		= 0;
+
+		plr_sta[i] = 1;
 	}
 
-	if (!queued)
-	{
-		free(header);
-		free(buf);
+	for (int n = 0; n < WAV_BUF_CNT; n++, plr_que = (plr_que+1) % WAV_BUF_CNT) {
+		if (plr_sta[plr_que] != 1) {
+			break;
+		}
+		WAVEHDR *hdr = &plr_hdr[plr_que];
+		if ((waveOutPrepareHeader(plr_hw, hdr, sizeof(WAVEHDR)) != MMSYSERR_NOERROR) || (waveOutWrite(plr_hw, hdr, sizeof(WAVEHDR)) != MMSYSERR_NOERROR)) {
+			SetEvent(plr_ev);
+			Sleep(0);
+			break;
+		}
+		plr_sta[plr_que] = 0;
 	}
 
-	plr_cnt++;
-
+	plr_bsy = false;
 	return 1;
 }
 

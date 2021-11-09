@@ -50,6 +50,7 @@ static struct track_info tracks[MAX_TRACKS];
 static struct play_info info = { -1, -1 };
 
 HANDLE player = NULL;
+HANDLE event = NULL;
 char alias_s[] = "cdaudio";
 char music_path[MAX_PATH];
 
@@ -73,48 +74,46 @@ int waveVol = -1;
  * proper seek commands to support playback from arbitrary positions on the track.
  */
 
-int player_main(struct play_info *info)
+int player_main(void *unused)
 {
-	int first = info->first;
-	int last = info->last -1; /* -1 for plr logic */
-	if(last<first)last = first; /* manage plr logic */
-	current = first;
-	if(current<firstTrack)current = firstTrack;
-	dprintf("OGG Player logic: %d to %d\n", first, last);
+	while (WaitForSingleObject(event, INFINITE) == 0) {
+		int first = info.first < firstTrack ? firstTrack : info.first;
+		int last = info.last - 1 < first ? first : info.last - 1; /* -1 for plr logic */
+		current = first;
+		dprintf("OGG Player logic: %d to %d\n", first, last);
 
-	while (current <= last && command == MCI_PLAY)
-	{
-		dprintf("Next track: %s\n", tracks[current].path);
-		tracks[current].tick = clock();
-		playing = 1;
-		plr_play(tracks[current].path);
+		while (command == MCI_PLAY && current <= last) {
+			dprintf("Next track: %s\n", tracks[current].path);
+			tracks[current].tick = clock();
+			playing = 1;
+			plr_play(tracks[current].path);
 
-		while (1)
-		{
-			if (plr_pump() == 0)
-				break;
+			while (command == MCI_PLAY) {
+				if (plr_pump() == 0) {
+					current++;
+					break;
+				}
 
-			if (command != MCI_PLAY)
-			{
-				playing = 0;
-				return 0;
 			}
 		}
-		current++;
-	}
 
-	/* Sending notify successful message:*/
-	if (notify)
-	{
-		dprintf("  Sending MCI_NOTIFY_SUCCESSFUL message...\n");
-		SendMessageA((HWND)0xffff, MM_MCINOTIFY, MCI_NOTIFY_SUCCESSFUL, 0xBEEF);
-		notify = 0;
-		/* NOTE: Notify message after successful playback is not working in Vista+.
-		   MCI_STATUS_MODE does not update to show that the track is no longer playing.
-		   Bug or broken design in mcicda.dll (also noted by the Wine team) */
-	}
+		/* Sending notify successful message:*/
+		if (command == MCI_PLAY && notify) {
+			notify = 0;
+			PostMessageA((HWND)0xffff, MM_MCINOTIFY, MCI_NOTIFY_SUCCESSFUL, 0xBEEF);
+			/* NOTE: Notify message after successful playback is not working in Vista+.
+			   MCI_STATUS_MODE does not update to show that the track is no longer playing.
+			   Bug or broken design in mcicda.dll (also noted by the Wine team) */
+			dprintf("  Sending MCI_NOTIFY_SUCCESSFUL message...\n");
+		}
 
-	playing = 0;
+		playing = 0;
+		plr_stop();
+		if (command == MCI_DELETE) break;
+	}
+	
+	CloseHandle(event);
+	event = NULL;
 	return 0;
 }
 
@@ -181,20 +180,26 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 				position += tracks[i].length;
 			}
 		}
-
 		dprintf("Emulating total of %d CD tracks.\n\n", numTracks);
+
+		if (firstTrack != -1) {
+			event = CreateEvent(NULL, FALSE, FALSE, NULL);
+			player = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)player_main, NULL, 0, NULL);
+		}
 	}
 
-#ifdef _DEBUG
 	if (fdwReason == DLL_PROCESS_DETACH)
 	{
+#ifdef _DEBUG
 		if (fh)
 		{
 			fclose(fh);
 			fh = NULL;
 		}
-	}
 #endif
+		command = MCI_DELETE;
+		if (event) SetEvent(event);
+	}
 
 	return TRUE;
 }
@@ -361,8 +366,8 @@ MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR 
 					/* (Battlezone2 startup milliseconds test workaround.) */
 					if (info.first == 0)
 					{
-						plr_stop();
 						command = MCI_STOP;
+						plr_stop();
 						return 0;
 					}
 
@@ -424,31 +429,34 @@ MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR 
 
 			if ((info.first && (fdwCommand & MCI_FROM)) || (info.last && (fdwCommand & MCI_TO)))
 			{
-				if (player)
-				{
-					TerminateThread(player, 0);
+				if (playing == 1) {
+					command = MCI_STOP;
+					plr_stop();
+					while (playing == 1) {
+						Sleep(0);
+					}
 				}
 
-				command = MCI_PLAY;
-				player = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)player_main, (void *)&info, 0, NULL);
+				if (event) {
+					command = MCI_PLAY;
+					SetEvent(event);
+				}
 			}
 		}
 
 		if (uMsg == MCI_STOP)
 		{
 			dprintf("  MCI_STOP\n");
-			plr_stop(); /* Make STOP command instant. */
 			command = MCI_STOP;
-			info.first = firstTrack; /* Reset first track */
-			current  = 1; /* Reset current track*/
+			plr_stop(); /* Make STOP command instant. */
 		}
 
 		/* FIXME: We do not support resume yet, so pause should be equivalent to stop */
 		if (uMsg == MCI_PAUSE)
 		{
 			dprintf("  MCI_PAUSE\n");
-			plr_stop();
 			command = MCI_PAUSE;
+			plr_stop();
 		}
 
 		/* Handling of MCI_SYSINFO (Heavy Gear, Battlezone2, Interstate 76) */

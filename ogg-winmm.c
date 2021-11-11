@@ -51,6 +51,7 @@ static struct play_info info = { -1, -1 };
 
 HANDLE player = NULL;
 HANDLE event = NULL;
+HWND window = NULL;
 char alias_s[] = "cdaudio";
 char music_path[MAX_PATH];
 
@@ -83,7 +84,7 @@ int player_main(void *unused)
 		dprintf("OGG Player logic: %d to %d\n", first, last);
 
 		while (command == MCI_PLAY && current <= last) {
-			dprintf("Next track: %s\n", tracks[current].path);
+			dprintf("Current track: %s\n", tracks[current].path);
 			tracks[current].tick = clock();
 			playing = 1;
 			plr_play(tracks[current].path);
@@ -100,7 +101,7 @@ int player_main(void *unused)
 		/* Sending notify successful message:*/
 		if (command == MCI_PLAY && notify) {
 			notify = 0;
-			PostMessageA((HWND)0xffff, MM_MCINOTIFY, MCI_NOTIFY_SUCCESSFUL, 0xBEEF);
+			SendNotifyMessageA(window, MM_MCINOTIFY, MCI_NOTIFY_SUCCESSFUL, MAGIC_DEVICEID);
 			/* NOTE: Notify message after successful playback is not working in Vista+.
 			   MCI_STATUS_MODE does not update to show that the track is no longer playing.
 			   Bug or broken design in mcicda.dll (also noted by the Wine team) */
@@ -108,7 +109,7 @@ int player_main(void *unused)
 		}
 
 		playing = 0;
-		plr_stop();
+		plr_reset();
 		if (command == MCI_DELETE) break;
 	}
 	
@@ -216,6 +217,7 @@ MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR 
 	{
 		dprintf("  MCI_NOTIFY\n");
 		notify = 1; /* storing the notify request */
+		window = *(HWND*)dwParam;
 	}
 
 	if (fdwCommand & MCI_WAIT)
@@ -429,10 +431,10 @@ MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR 
 
 			if ((info.first && (fdwCommand & MCI_FROM)) || (info.last && (fdwCommand & MCI_TO)))
 			{
-				if (playing == 1) {
+				if (playing) {
 					command = MCI_STOP;
 					plr_stop();
-					while (playing == 1) {
+					while (playing) {
 						Sleep(0);
 					}
 				}
@@ -777,13 +779,13 @@ MCIERROR WINAPI fake_mciSendStringA(LPCSTR cmd, LPSTR ret, UINT cchReturn, HANDL
 		/* Add: Mode handling */
 		if (strstr(cmdbuf, "mode"))
 		{
-			if(!playing){
-				dprintf("   -> stopped\n");
-				strcpy(ret, "stopped");
-			}
-			else{
+			if (playing) {
 				dprintf("   -> playing\n");
 				strcpy(ret, "playing");
+			}
+			else{
+				dprintf("   -> stopped\n");
+				strcpy(ret, "stopped");
 			}
 			return 0;
 		}
@@ -795,6 +797,7 @@ MCIERROR WINAPI fake_mciSendStringA(LPCSTR cmd, LPSTR ret, UINT cchReturn, HANDL
 	if (strstr(cmdbuf, cmp_str)){
 		if (strstr(cmdbuf, "notify")){
 			notify = 1; /* storing the notify request */
+			window = (HWND)hwndCallback;
 		}
 		if (sscanf(cmdbuf, "play %*s from %d to %d", &from, &to) == 2)
 		{

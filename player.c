@@ -38,19 +38,8 @@ int plr_length(const char *path)
 	return ret;
 }
 
-void plr_stop()
+void plr_reset()
 {
-	if (!plr_run) return;
-
-	plr_run = false;
-
-	if (plr_ev) {
-		SetEvent(plr_ev);
-		while (plr_bsy) {
-			Sleep(0);
-		}
-	}
-
 	if (plr_vf.datasource) {
 		ov_clear(&plr_vf);
 	}
@@ -72,7 +61,7 @@ void plr_stop()
 
 int plr_play(const char *path)
 {
-	plr_stop();
+	plr_reset();
 
 	if (ov_fopen(path, &plr_vf) != 0) return 0;
 
@@ -108,13 +97,27 @@ int plr_play(const char *path)
 	return 1;
 }
 
+void plr_stop()
+{
+	if (!plr_run) return;
+
+	plr_run = false;
+
+	if (plr_ev) {
+		SetEvent(plr_ev);
+		while (plr_bsy) {
+			Sleep(0);
+		}
+	}
+}
+
 int plr_pump()
 {
 	if (!plr_run || !plr_vf.datasource) return 0;
 
 	plr_bsy = true;
 
-	if ((WaitForSingleObject(plr_ev, INFINITE) != 0) || !plr_run) {
+	if (WaitForSingleObject(plr_ev, INFINITE) != 0 || !plr_run) {
 		plr_bsy = false;
 		return 0;
 	}
@@ -136,7 +139,7 @@ int plr_pump()
 
 			if (bytes == OV_HOLE) {
 				continue;
-			} else if ((bytes == OV_EBADLINK) || (bytes == OV_EINVAL)) {
+			} else if (bytes == OV_EBADLINK || bytes == OV_EINVAL) {
 				pos = 0;
 				break;
 			} else if (bytes == 0) {
@@ -174,7 +177,7 @@ int plr_pump()
 			break;
 		}
 		WAVEHDR *hdr = &plr_hdr[plr_que];
-		if ((waveOutPrepareHeader(plr_hw, hdr, sizeof(WAVEHDR)) != MMSYSERR_NOERROR) || (waveOutWrite(plr_hw, hdr, sizeof(WAVEHDR)) != MMSYSERR_NOERROR)) {
+		if (waveOutPrepareHeader(plr_hw, hdr, sizeof(WAVEHDR)) != MMSYSERR_NOERROR || waveOutWrite(plr_hw, hdr, sizeof(WAVEHDR)) != MMSYSERR_NOERROR) {
 			SetEvent(plr_ev);
 			Sleep(0);
 			break;

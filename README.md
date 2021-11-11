@@ -34,6 +34,10 @@ ogg-winmm also provides separate volume control for CDDA/MIDI/WAVE, which has be
 
 # Revisions:
 
+v.2021.11.11:
+- Post notify message to the correct window.
+- Fix a race condition that sometimes causes music to stutter.
+
 v.2021.11.10:
 - Completely rewrite player control logic.
 - Use persistent thread to improve performance.

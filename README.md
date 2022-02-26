@@ -34,6 +34,9 @@ ogg-winmm also provides separate volume control for CDDA/MIDI/WAVE, which has be
 
 # Revisions:
 
+v.2022.02.27:
+- Treat MCI_PAUSE as MCI_STOP and MCI_RESUME as MCI_PLAY, since MCICDA does not support resume.
+
 v.2021.11.15:
 - Ignore case when opening device.
 

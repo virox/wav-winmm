@@ -61,7 +61,7 @@ int notify = 0;
 int current  = 1;
 int firstTrack = -1;
 int lastTrack = 0;
-int numTracks = 1; /* +1 for data track on mixed mode cd's */
+int numTracks = 0;
 int time_format = MCI_FORMAT_TMSF;
 
 DWORD auxVol = -1;
@@ -172,8 +172,8 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 				if (firstTrack == -1)
 				{
 					firstTrack = i;
+					if (i != 1) numTracks = i - 1; /* Take into account data tracks before music tracks */
 				}
-				if(i == numTracks) numTracks -= 1; /* Take into account pure music cd's starting with track01.ogg */
 
 				dprintf("Track %02d: %02d:%02d @ %d seconds\n", i, tracks[i].length / 60, tracks[i].length % 60, tracks[i].position);
 				numTracks++;
@@ -453,12 +453,22 @@ MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR 
 			plr_stop(); /* Make STOP command instant. */
 		}
 
-		/* FIXME: We do not support resume yet, so pause should be equivalent to stop */
+		/* FIXME: MCICDA does not support resume, so pause should be equivalent to stop */
 		if (uMsg == MCI_PAUSE)
 		{
 			dprintf("  MCI_PAUSE\n");
-			command = MCI_PAUSE;
+			command = MCI_STOP;
 			plr_stop();
+		}
+
+		/* FIXME: MCICDA does not support resume, so resume should be equivalent to play */
+		if (uMsg == MCI_RESUME)
+		{
+			dprintf("  MCI_RESUME\n");
+			if (event) {
+				command = MCI_PLAY;
+				SetEvent(event);
+			}
 		}
 
 		/* Handling of MCI_SYSINFO (Heavy Gear, Battlezone2, Interstate 76) */
@@ -538,12 +548,7 @@ MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR 
 				if (parms->dwItem == MCI_CDA_STATUS_TYPE_TRACK)
 				{
 					dprintf("      MCI_CDA_STATUS_TYPE_TRACK\n");
-					/*Fix from the Dxwnd project*/
-					/* ref. by WinQuake */
-					if((parms->dwTrack > 0) &&  (parms->dwTrack , MAX_TRACKS)){
-						if(tracks[parms->dwTrack].length > 0)
-							parms->dwReturn = MCI_CDA_TRACK_AUDIO; 
-					}
+					parms->dwReturn = (parms->dwTrack >= firstTrack && parms->dwTrack <= lastTrack) ? MCI_CDA_TRACK_AUDIO : MCI_CDA_TRACK_OTHER;
 				}
 
 				if (parms->dwItem == MCI_STATUS_MEDIA_PRESENT)
@@ -671,6 +676,14 @@ MCIERROR WINAPI fake_mciSendStringA(LPCSTR cmd, LPSTR ret, UINT cchReturn, HANDL
 	if (strstr(cmdbuf, cmp_str))
 	{
 		fake_mciSendCommandA(MAGIC_DEVICEID, MCI_PAUSE, 0, (DWORD_PTR)NULL);
+		return 0;
+	}
+
+	/* Handle "resume cdaudio/alias" */
+	sprintf(cmp_str, "resume %s", alias_s);
+	if (strstr(cmdbuf, cmp_str))
+	{
+		fake_mciSendCommandA(MAGIC_DEVICEID, MCI_RESUME, 0, (DWORD_PTR)NULL);
 		return 0;
 	}
 

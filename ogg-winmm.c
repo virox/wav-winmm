@@ -22,7 +22,7 @@
 #include "player.h"
 #include "stub.h"
 
-#define MAGIC_DEVICEID 0xBEEF
+#define MAGIC_DEVICEID 0x0099CDDA
 #define MAX_TRACKS 99
 
 #ifdef _DEBUG
@@ -81,10 +81,10 @@ int player_main(void *unused)
 		int first = info.first < firstTrack ? firstTrack : info.first;
 		int last = info.last - 1 < first ? first : info.last - 1; /* -1 for plr logic */
 		current = first;
-		dprintf("OGG Player logic: %d to %d\n", first, last);
+		dprintf("[Thread] From %d to %d\n", first, last);
 
 		while (command == MCI_PLAY && current <= last) {
-			dprintf("Current track: %s\n", tracks[current].path);
+			dprintf("[Thread] Current track %s\n", tracks[current].path);
 			tracks[current].tick = clock();
 			playing = 1;
 			plr_play(tracks[current].path);
@@ -105,7 +105,7 @@ int player_main(void *unused)
 			/* NOTE: Notify message after successful playback is not working in Vista+.
 			   MCI_STATUS_MODE does not update to show that the track is no longer playing.
 			   Bug or broken design in mcicda.dll (also noted by the Wine team) */
-			dprintf("  Sending MCI_NOTIFY_SUCCESSFUL message...\n");
+			dprintf("[Thread] Send MCI_NOTIFY_SUCCESSFUL message\n");
 		}
 
 		playing = 0;
@@ -158,7 +158,7 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 
 		for (int i = 1; i < MAX_TRACKS; i++) /* "Changed: int i = 0" to "1" we can skip track00.ogg" */
 		{
-			snprintf(tracks[i].path, sizeof tracks[i].path, "%s\\Track%02d.ogg", music_path, i);
+			snprintf(tracks[i].path, sizeof(tracks[i].path), "%s\\Track%02d.ogg", music_path, i);
 			tracks[i].length = plr_length(tracks[i].path);
 			tracks[i].position = position;
 
@@ -471,28 +471,41 @@ MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR 
 			}
 		}
 
+		/* Handling of MCI_INFO */
+		if (uMsg == MCI_INFO)
+		{
+			dprintf("  MCI_INFO\n");
+			LPMCI_INFO_PARMS parms = (LPVOID)dwParam;
+
+			if(fdwCommand & MCI_INFO_PRODUCT)
+			{
+				dprintf("    MCI_INFO_PRODUCT\n");
+				strncpy((char*)parms->lpstrReturn, "cdaudio", parms->dwRetSize); /* name = cdaudio */
+			}
+			
+			if(fdwCommand & MCI_INFO_MEDIA_IDENTITY)
+			{
+				dprintf("    MCI_INFO_MEDIA_IDENTITY\n");
+				memcpy((LPVOID)(parms->lpstrReturn), "0099CDDA0099CDDA", parms->dwRetSize); /* 16 hexadecimal digits */
+			}
+		}
+
 		/* Handling of MCI_SYSINFO (Heavy Gear, Battlezone2, Interstate 76) */
 		if (uMsg == MCI_SYSINFO)
 		{
 			dprintf("  MCI_SYSINFO\n");
 			LPMCI_SYSINFO_PARMSA parms = (LPVOID)dwParam;
 
-			if(fdwCommand & MCI_SYSINFO_QUANTITY)
-			{
-				dprintf("    MCI_SYSINFO_QUANTITY\n");
-				memcpy((LPVOID)(parms->lpstrReturn), (LPVOID)&"1", 2); /* quantity = 1 */
-				parms->dwRetSize = sizeof(DWORD);
-				parms->dwNumber = MAGIC_DEVICEID;
-				dprintf("        Return: %s\n", parms->lpstrReturn);
-			}
-
 			if(fdwCommand & MCI_SYSINFO_NAME)
 			{
 				dprintf("    MCI_SYSINFO_NAME\n");
-				memcpy((LPVOID)(parms->lpstrReturn), (LPVOID)&"cdaudio", 8); /* name = cdaudio */
-				parms->dwRetSize = sizeof(DWORD);
-				parms->dwNumber = MAGIC_DEVICEID;
-				dprintf("        Return: %s\n", parms->lpstrReturn);
+				strncpy((char*)parms->lpstrReturn, "cdaudio", parms->dwRetSize); /* name = cdaudio */
+			}
+
+			if(fdwCommand & MCI_SYSINFO_QUANTITY)
+			{
+				dprintf("    MCI_SYSINFO_QUANTITY\n");
+				*(DWORD*)parms->lpstrReturn = 1; /* quantity = 1 */
 			}
 		}
 

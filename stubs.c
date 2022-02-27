@@ -96,7 +96,7 @@ MMRESULT WINAPI fake_waveOutWrite(HWAVEOUT a0, LPWAVEHDR a1, UINT a2)
 		funcp = (void*)GetProcAddress(loadRealDLL(), "waveOutWrite");
 
 	/* let owr own OGG wave pass through */
-	if ((waveVol >= 0 || midiVol >= 0 ) && a1 && a1->lpData && a1->dwUser != 0xBEEF7777) {
+	if ((waveVol >= 0 || midiVol >= 0 ) && a1 && a1->lpData && a1->dwUser != 0xCDDA7777) {
 		/* Windows is f**ked up. MIDI synth driver converts MIDI to WAVE and then calls winmm.waveOutWrite!!! */
 		void *addr = __builtin_return_address(0);
 		char caller[MAX_PATH];

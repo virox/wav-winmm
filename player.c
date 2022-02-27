@@ -165,7 +165,7 @@ int plr_pump()
 		waveOutUnprepareHeader(plr_hw, hdr, sizeof(WAVEHDR));
 		hdr->lpData		= buf;
 		hdr->dwBufferLength	= pos;
-		hdr->dwUser		= 0xBEEF7777; /* our lucky identifier */
+		hdr->dwUser		= 0xCDDA7777; /* our lucky identifier */
 		hdr->dwFlags		= 0;
 		hdr->dwLoops		= 0;
 

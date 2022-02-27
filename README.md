@@ -11,7 +11,9 @@ ogg-winmm also provides separate volume control for CDDA/MIDI/WAVE, which has be
 1. Rip the audio tracks from the CD and encode them to ogg files, following naming convention:
 > **Track02.ogg, Track03.ogg, Track04.ogg, ...**
 
-  Note the numbering usually starts from 02 since the first track is a data track on mixed mode CD's.
+  Note the file names can not contain any whitespace.
+
+  Also note the numbering usually starts from 02 since on mixed mode CDs the first track is a data track.
   
   In rare cases the games may use a pure audio CD with no data tracks in which case you should start numbering them from "Track01.ogg".
 
@@ -33,6 +35,10 @@ ogg-winmm also provides separate volume control for CDDA/MIDI/WAVE, which has be
   - libvorbis (https://github.com/xiph/vorbis.git)
 
 # Revisions:
+
+v.2022.02.28:
+- Implement MCI_INFO
+- Fix MCI_SYSINFO
 
 v.2022.02.27:
 - Treat MCI_PAUSE as MCI_STOP and MCI_RESUME as MCI_PLAY, since MCICDA does not support resume.

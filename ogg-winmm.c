@@ -52,7 +52,8 @@ static struct play_info info = { -1, -1 };
 HANDLE player = NULL;
 HANDLE event = NULL;
 HWND window = NULL;
-char alias_s[] = "cdaudio";
+const char alias_def[] = "cdaudio";
+char alias_s[100] = "cdaudio";
 char music_path[MAX_PATH];
 
 int command = 0;
@@ -260,7 +261,7 @@ MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR 
 			dprintf("    MCI_OPEN_TYPE\n");
 			dprintf("        -> %s\n", parms->lpstrDeviceType);
 
-			if (stricmp(parms->lpstrDeviceType, "cdaudio") == 0)
+			if (stricmp(parms->lpstrDeviceType, alias_def) == 0)
 			{
 				dprintf("  Returning magic device id for MCI_DEVTYPE_CD_AUDIO\n");
 				parms->wDeviceID = MAGIC_DEVICEID;
@@ -480,7 +481,7 @@ MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR 
 			if(fdwCommand & MCI_INFO_PRODUCT)
 			{
 				dprintf("    MCI_INFO_PRODUCT\n");
-				strncpy((char*)parms->lpstrReturn, "cdaudio", parms->dwRetSize); /* name = cdaudio */
+				strncpy((char*)parms->lpstrReturn, alias_s, parms->dwRetSize); /* name */
 			}
 			
 			if(fdwCommand & MCI_INFO_MEDIA_IDENTITY)
@@ -499,7 +500,7 @@ MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR 
 			if(fdwCommand & MCI_SYSINFO_NAME)
 			{
 				dprintf("    MCI_SYSINFO_NAME\n");
-				strncpy((char*)parms->lpstrReturn, "cdaudio", parms->dwRetSize); /* name = cdaudio */
+				strncpy((char*)parms->lpstrReturn, alias_s, parms->dwRetSize); /* name */
 			}
 
 			if(fdwCommand & MCI_SYSINFO_QUANTITY)
@@ -705,9 +706,9 @@ MCIERROR WINAPI fake_mciSendStringA(LPCSTR cmd, LPSTR ret, UINT cchReturn, HANDL
 	if (strstr(cmdbuf, "type cdaudio alias"))
 	{
 		char *tmp_s = strrchr(cmdbuf, ' ');
-		if (tmp_s && *(tmp_s +1))
+		if (tmp_s && tmp_s[1])
 		{
-			sprintf(alias_s, "%s", tmp_s +1);
+			sprintf(alias_s, "%s", tmp_s+1);
 		}
 		fake_mciSendCommandA(MAGIC_DEVICEID, MCI_OPEN, 0, (DWORD_PTR)NULL);
 		return 0;
@@ -723,7 +724,7 @@ MCIERROR WINAPI fake_mciSendStringA(LPCSTR cmd, LPSTR ret, UINT cchReturn, HANDL
 	sprintf(cmp_str, "close %s", alias_s);
 	if (strstr(cmdbuf, cmp_str))
 	{
-		sprintf(alias_s, "cdaudio");
+		sprintf(alias_s, alias_def);
 		return 0;
 	}
 

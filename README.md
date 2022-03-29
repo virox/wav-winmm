@@ -36,6 +36,9 @@ ogg-winmm also provides separate volume control for CDDA/MIDI/WAVE, which has be
 
 # Revisions:
 
+v.2022.03.29:
+- Change MAGIC_DEVICEID to WORD for better compatibility.
+
 v.2022.02.28:
 - Implement MCI_INFO
 - Fix MCI_SYSINFO

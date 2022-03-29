@@ -22,7 +22,7 @@
 #include "player.h"
 #include "stub.h"
 
-#define MAGIC_DEVICEID 0x0099CDDA
+#define MAGIC_DEVICEID 0xCDDA
 #define MAX_TRACKS 99
 
 #ifdef _DEBUG
@@ -126,12 +126,12 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 #ifdef _DEBUG
 		fh = fopen("winmm.log", "w");
 #endif
-		GetModuleFileName(hinstDLL, music_path, sizeof music_path);
+		GetModuleFileName(hinstDLL, music_path, sizeof(music_path));
 
 		char *last = strrchr(music_path, '.');
 		if (last) {
 			*last = '\0';
-			strncat(last, ".ini", 4);
+			strcat(last, ".ini");
 
 			cddaVol = GetPrivateProfileInt("OGG-WinMM", "CDDAVolume", -1, music_path);
 			midiVol = GetPrivateProfileInt("OGG-WinMM", "MIDIVolume", -1, music_path);
@@ -149,7 +149,7 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 
 		last = strrchr(music_path, '\\');
 		if (last) *last = '\0';
-		strncat(music_path, "\\MUSIC", 6);
+		strcat(music_path, "\\MUSIC");
 
 		dprintf("ogg-winmm music directory is %s\n", music_path);
 		dprintf("ogg-winmm searching tracks...\n");

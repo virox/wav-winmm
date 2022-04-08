@@ -28,8 +28,6 @@ ogg-winmm also provides separate volume control for CDDA/MIDI/WAVE, which has be
 # Building:
 
 - Use MinGW 6.3.0-1 or later to build on Windows OS.
-- Put libraries in subfolder "libs\"
-- Put include files in subfolder "libs\include\"
 - Dependencies:
   - libogg (https://github.com/gcp/libogg.git)
   - libvorbis (https://github.com/xiph/vorbis.git)

@@ -163,24 +163,16 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 			tracks[i].length = plr_length(tracks[i].path);
 			tracks[i].position = position;
 
-			if (tracks[i].length < 4)
+			if (firstTrack == -1)
 			{
-				tracks[i].path[0] = '\0';
-				position += 4; /* missing tracks are 4 second data tracks for us */
+				firstTrack = i;
+				if (i != 1) numTracks = i - 1; /* Take into account data tracks before music tracks */
 			}
-			else
-			{
-				if (firstTrack == -1)
-				{
-					firstTrack = i;
-					if (i != 1) numTracks = i - 1; /* Take into account data tracks before music tracks */
-				}
 
-				dprintf("Track %02d: %02d:%02d @ %d seconds\n", i, tracks[i].length / 60, tracks[i].length % 60, tracks[i].position);
-				numTracks++;
-				lastTrack = i;
-				position += tracks[i].length;
-			}
+			dprintf("Track %02d: %02d:%02d @ %d seconds\n", i, tracks[i].length / 60, tracks[i].length % 60, tracks[i].position);
+			numTracks++;
+			lastTrack = i;
+			position += tracks[i].length;
 		}
 		dprintf("Emulating total of %d CD tracks.\n\n", numTracks);
 

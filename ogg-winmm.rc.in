@@ -1,6 +1,5 @@
 1 VERSIONINFO
-FILEVERSION 0,0,0,0
-PRODUCTVERSION 0,0,0,0
+FILEVERSION __REV__
 {
     BLOCK "StringFileInfo"
     {
@@ -11,7 +10,7 @@ PRODUCTVERSION 0,0,0,0
             VALUE "InternalName", "ogg-winmm"
             VALUE "LegalCopyright", "AyuanX"
             VALUE "OriginalFileName", "ogg-winmm.dll"
-            VALUE "FileDescription", "Emulator for Windows CD Audio Player"
+            VALUE "FileDescription", "Windows CD-DA Audio Emulator"
             VALUE "Comments", "https://github.com/ayuanx/ogg-winmm.git"
         }
     }

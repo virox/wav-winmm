@@ -76,7 +76,7 @@ int waveVol = -1;
  * proper seek commands to support playback from arbitrary positions on the track.
  */
 
-int player_main(void *unused)
+int WINAPI player_main(void *unused)
 {
 	while (WaitForSingleObject(event, INFINITE) == 0) {
 		int first = info.first < firstTrack ? firstTrack : info.first;

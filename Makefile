@@ -1,4 +1,4 @@
-REV=$(shell sh -c 'date +"%Y.%m.%d"')
+REV=$(shell sh -c 'date +"%Y,%m,%d"')
 
 all: ogg-winmm.dll
 

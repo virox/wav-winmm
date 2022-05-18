@@ -12,36 +12,26 @@ static HINSTANCE realWinmmDLL = NULL;
 void stub_midivol(int vol) { midiVol = vol < 0 || vol > 99  ? -1.0 : vol / 100.0; }
 void stub_wavevol(int vol) { waveVol = vol < 0 || vol > 99  ? -1.0 : vol / 100.0; }
 
-HINSTANCE getWinmmHandle()
+void unloadRealDLL()
 {
-	return realWinmmDLL;
-}
-
-/* watches for the app to close, unloads the library when it does */
-/* since FreeLibrary is dangerous in DllMain */
-void ExitMonitor(LPVOID DLLHandle)
-{
-	WaitForSingleObject(DLLHandle, INFINITE);
-	FreeLibrary(getWinmmHandle());
+	if (realWinmmDLL) {
+		FreeLibrary(realWinmmDLL);
+		realWinmmDLL = NULL;
+	}
 }
 
 /* if winmm.dll is already loaded, return its handle */
 /* otherwise, load it */
 HINSTANCE loadRealDLL()
 {
-	if (realWinmmDLL)
-		return realWinmmDLL;
+	if (!realWinmmDLL) {
+		char winmm_path[MAX_PATH];
 
-	char winmm_path[MAX_PATH];
+		GetSystemDirectory(winmm_path, MAX_PATH);
+		strcat(winmm_path, "\\winmm.dll");
 
-	GetSystemDirectory(winmm_path, MAX_PATH);
-	strcat(winmm_path, "\\winmm.dll");
-
-	realWinmmDLL = LoadLibrary(winmm_path);
-
-	/* start watcher thread to close the library */
-	CreateThread(NULL, 500, (LPTHREAD_START_ROUTINE)ExitMonitor, GetCurrentThread(), 0, NULL);
-
+		realWinmmDLL = LoadLibrary(winmm_path);
+	}
 	return realWinmmDLL;
 }
 

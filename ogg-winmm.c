@@ -121,8 +121,7 @@ int WINAPI player_main(void *unused)
 
 BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 {
-	if (fdwReason == DLL_PROCESS_ATTACH)
-	{
+	if (fdwReason == DLL_PROCESS_ATTACH) {
 #ifdef _DEBUG
 		fh = fopen("winmm.log", "w");
 #endif
@@ -180,10 +179,7 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 			event = CreateEvent(NULL, FALSE, FALSE, NULL);
 			player = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)player_main, NULL, 0, NULL);
 		}
-	}
-
-	if (fdwReason == DLL_PROCESS_DETACH)
-	{
+	} else if (fdwReason == DLL_PROCESS_DETACH) {
 #ifdef _DEBUG
 		if (fh)
 		{
@@ -193,6 +189,9 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 #endif
 		command = MCI_DELETE;
 		if (event) SetEvent(event);
+		if (player) WaitForSingleObject(player, INFINITE);
+
+		unloadRealDLL();
 	}
 
 	return TRUE;

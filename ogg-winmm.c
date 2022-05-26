@@ -35,8 +35,8 @@ FILE *fh = NULL;
 struct track_info
 {
 	char path[MAX_PATH];    /* full path to ogg */
-	unsigned int length;    /* seconds */
 	unsigned int position;  /* seconds */
+	unsigned int length;    /* seconds */
 	clock_t tick;           /* clock tick at play start */
 };
 
@@ -47,7 +47,7 @@ struct play_info
 };
 
 static struct track_info tracks[MAX_TRACKS];
-static struct play_info info = { -1, -1 };
+static struct play_info info = {0, 0};
 
 HANDLE player = NULL;
 HANDLE event = NULL;
@@ -59,8 +59,8 @@ char music_path[MAX_PATH];
 int command = 0;
 int playing = 0;
 int notify = 0;
-int current  = 1;
-int firstTrack = -1;
+int current  = 0;
+int firstTrack = 0;
 int lastTrack = 0;
 int numTracks = 0;
 int time_format = MCI_FORMAT_MSF;
@@ -153,29 +153,28 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 		dprintf("ogg-winmm music directory is %s\n", music_path);
 		dprintf("ogg-winmm searching tracks...\n");
 
-		memset(tracks, 0, sizeof tracks);
+		memset(tracks, 0, sizeof(tracks));
 		unsigned int position = 0;
 
-		for (int i = 1; i < MAX_TRACKS; i++) /* "Changed: int i = 0" to "1" we can skip track00.ogg" */
-		{
-			snprintf(tracks[i].path, sizeof(tracks[i].path), "%s\\Track%02d.ogg", music_path, i);
-			tracks[i].length = plr_length(tracks[i].path);
+		for (int i = 1; i <= MAX_TRACKS; i++) {
+			snprintf(tracks[i].path, MAX_PATH, "%s\\Track%02d.ogg", music_path, i);
 			tracks[i].position = position;
+			tracks[i].length = plr_length(tracks[i].path);
 
-			if (firstTrack == -1)
-			{
-				firstTrack = i;
-				if (i != 1) numTracks = i - 1; /* Take into account data tracks before music tracks */
+			if (tracks[i].length) {
+				dprintf("Track %02d: %02d:%02d @ %d seconds\n", i, tracks[i].length / 60, tracks[i].length % 60, tracks[i].position);
+				if (!firstTrack) firstTrack = i;
+				numTracks = lastTrack = i;
+				position += tracks[i].length;
+			} else {
+				tracks[i].path[0] = '\0';
 			}
 
-			dprintf("Track %02d: %02d:%02d @ %d seconds\n", i, tracks[i].length / 60, tracks[i].length % 60, tracks[i].position);
-			numTracks++;
-			lastTrack = i;
-			position += tracks[i].length;
+			if (i != 1 && !tracks[i].length) break;
 		}
 		dprintf("Emulating total of %d CD tracks.\n\n", numTracks);
 
-		if (firstTrack != -1) {
+		if (numTracks) {
 			event = CreateEvent(NULL, FALSE, FALSE, NULL);
 			player = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)player_main, NULL, 0, NULL);
 		}
@@ -265,7 +264,7 @@ MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR 
 					LPMCI_PLAY_PARMS parms = (LPVOID)dwParam;
 
 					if (fdwCommand & MCI_FROM) {
-						dprintf("    dwFrom: %d\n", parms->dwFrom);
+						dprintf("    dwFrom: 0x%08X\n", parms->dwFrom);
 
 						/* FIXME: rounding to nearest track */
 						if (time_format == MCI_FORMAT_TMSF) {
@@ -302,7 +301,7 @@ MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR 
 					}
 
 					if (fdwCommand & MCI_TO) {
-						dprintf("    dwTo:   %d\n", parms->dwTo);
+						dprintf("    dwTo:   0x%08X\n", parms->dwTo);
 
 						if (time_format == MCI_FORMAT_TMSF) {
 							info.last = MCI_TMSF_TRACK(parms->dwTo);
@@ -515,7 +514,7 @@ MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR 
 								break;
 						}
 					}
-					dprintf("  dwReturn %d\n", parms->dwReturn);
+					dprintf("  dwReturn 0x%08X\n", parms->dwReturn);
 				}
 				break;
 			case MCI_RESUME: /* FIXME: MCICDA does not support resume, so resume should be equivalent to play */
@@ -611,7 +610,7 @@ MCIERROR WINAPI fake_mciSendStringA(LPCSTR cmd, LPSTR ret, UINT cchReturn, HANDL
 	sprintf(cmp_str, "close %s", alias_s);
 	if (strstr(cmdbuf, cmp_str))
 	{
-		sprintf(alias_s, alias_def);
+		strcpy(alias_s, alias_def);
 		return 0;
 	}
 

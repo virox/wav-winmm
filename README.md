@@ -34,12 +34,16 @@ ogg-winmm also provides separate volume control for CDDA/MIDI/WAVE, which has be
 
 # Revisions:
 
-v.2022.03.29:
-- Change MAGIC_DEVICEID to WORD for better compatibility.
+v.2022.05.26:
+- Remove unnecessary monitor thread.
+- Thread calling convention fix.
+- Position calculation and status fix.
+- Various compatibility fix.
 
 v.2022.02.28:
 - Implement MCI_INFO
 - Fix MCI_SYSINFO
+- Bugfixes for MCISendString
 
 v.2022.02.27:
 - Treat MCI_PAUSE as MCI_STOP and MCI_RESUME as MCI_PLAY, since MCICDA does not support resume.

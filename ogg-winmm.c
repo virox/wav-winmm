@@ -247,6 +247,7 @@ MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR 
 			}
 			else return relay_mciSendCommandA(IDDevice, uMsg, fdwCommand, dwParam);
 		}
+		return relay_mciSendCommandA(IDDevice, uMsg, fdwCommand, dwParam);
 	} else if (IDDevice == MAGIC_DEVICEID || IDDevice == 0 || IDDevice == 0xFFFFFFFF) {
 		switch (uMsg) {
 			case MCI_CLOSE:

@@ -34,6 +34,9 @@ ogg-winmm also provides separate volume control for CDDA/MIDI/WAVE, which has be
 
 # Revisions:
 
+v.2022.06.26:
+- Fix MIDI file open bypass.
+
 v.2022.05.26:
 - Remove unnecessary monitor thread.
 - Thread calling convention fix.

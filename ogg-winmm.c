@@ -615,6 +615,28 @@ MCIERROR WINAPI fake_mciSendStringA(LPCSTR cmd, LPSTR ret, UINT cchReturn, HANDL
 		return 0;
 	}
 
+	/* Handle "seek cdaudio/alias" */
+	sprintf(cmp_str, "seek %s", alias_s);
+	if (strstr(cmdbuf, cmp_str))
+	{
+		fake_mciSendCommandA(MAGIC_DEVICEID, MCI_STOP, 0, (DWORD_PTR)NULL);
+
+		int track;
+		if (strstr(cmdbuf, "to start"))
+		{
+			info.first = 0;
+		}
+		else if (strstr(cmdbuf, "to end"))
+		{
+			info.first = lastTrack + 1;
+		}
+		else if (sscanf(cmdbuf, "seek %*s to %d", &track) == 1) // TMSF only
+		{
+			info.first = track;
+		}
+		return 0;
+	}
+
 	/* Handle "set cdaudio/alias time format" */
 	sprintf(cmp_str, "set %s time format", alias_s);
 	if (strstr(cmdbuf, cmp_str)){
@@ -657,7 +679,11 @@ MCIERROR WINAPI fake_mciSendStringA(LPCSTR cmd, LPSTR ret, UINT cchReturn, HANDL
 			parms.dwItem = MCI_STATUS_LENGTH;
 			parms.dwTrack = track;
 			fake_mciSendCommandA(MAGIC_DEVICEID, MCI_STATUS, MCI_STATUS_ITEM|MCI_TRACK, (DWORD_PTR)&parms);
-			sprintf(ret, "%d", parms.dwReturn);
+			if (time_format == MCI_FORMAT_MILLISECONDS) {
+				sprintf(ret, "%d", parms.dwReturn);
+			} else {
+				sprintf(ret, "%02d:%02d:00", MCI_MSF_MINUTE(parms.dwReturn), MCI_MSF_SECOND(parms.dwReturn));
+			}
 			return 0;
 		}
 		if (strstr(cmdbuf, "length"))
@@ -665,7 +691,11 @@ MCIERROR WINAPI fake_mciSendStringA(LPCSTR cmd, LPSTR ret, UINT cchReturn, HANDL
 			static MCI_STATUS_PARMS parms;
 			parms.dwItem = MCI_STATUS_LENGTH;
 			fake_mciSendCommandA(MAGIC_DEVICEID, MCI_STATUS, MCI_STATUS_ITEM, (DWORD_PTR)&parms);
-			sprintf(ret, "%d", parms.dwReturn);
+			if (time_format == MCI_FORMAT_MILLISECONDS) {
+				sprintf(ret, "%d", parms.dwReturn);
+			} else {
+				sprintf(ret, "%02d:%02d:00", MCI_MSF_MINUTE(parms.dwReturn), MCI_MSF_SECOND(parms.dwReturn));
+			}
 			return 0;
 		}
 		if (sscanf(cmdbuf, "status %*s position track %d", &track) == 1)
@@ -682,7 +712,13 @@ MCIERROR WINAPI fake_mciSendStringA(LPCSTR cmd, LPSTR ret, UINT cchReturn, HANDL
 			static MCI_STATUS_PARMS parms;
 			parms.dwItem = MCI_STATUS_POSITION;
 			fake_mciSendCommandA(MAGIC_DEVICEID, MCI_STATUS, MCI_STATUS_ITEM, (DWORD_PTR)&parms);
-			sprintf(ret, "%d", parms.dwReturn);
+			if (time_format == MCI_FORMAT_MILLISECONDS) {
+				sprintf(ret, "%d", parms.dwReturn);
+			} else if (time_format == MCI_FORMAT_MSF) {
+				sprintf(ret, "%02d:%02d:%02d", MCI_MSF_MINUTE(parms.dwReturn), MCI_MSF_SECOND(parms.dwReturn), MCI_MSF_FRAME(parms.dwReturn));
+			} else { /* TMSF */
+				sprintf(ret, "%02d:%02d:%02d:%02d", MCI_TMSF_TRACK(parms.dwReturn), MCI_TMSF_MINUTE(parms.dwReturn), MCI_TMSF_SECOND(parms.dwReturn), MCI_TMSF_FRAME(parms.dwReturn));
+			}
 			return 0;
 		}
 		if (strstr(cmdbuf, "media present"))
@@ -709,13 +745,14 @@ MCIERROR WINAPI fake_mciSendStringA(LPCSTR cmd, LPSTR ret, UINT cchReturn, HANDL
 	int from = -1, to = -1;
 	sprintf(cmp_str, "play %s", alias_s);
 	if (strstr(cmdbuf, cmp_str)){
+		MCI_PLAY_PARMS parms;
+
 		if (strstr(cmdbuf, "notify")){
 			notify = 1; /* storing the notify request */
 			window = (HWND)hwndCallback;
 		}
 		if (sscanf(cmdbuf, "play %*s from %d to %d", &from, &to) == 2)
 		{
-			static MCI_PLAY_PARMS parms;
 			parms.dwFrom = from;
 			parms.dwTo = to;
 			fake_mciSendCommandA(MAGIC_DEVICEID, MCI_PLAY, MCI_FROM|MCI_TO, (DWORD_PTR)&parms);
@@ -723,18 +760,20 @@ MCIERROR WINAPI fake_mciSendStringA(LPCSTR cmd, LPSTR ret, UINT cchReturn, HANDL
 		}
 		if (sscanf(cmdbuf, "play %*s from %d", &from) == 1)
 		{
-			static MCI_PLAY_PARMS parms;
 			parms.dwFrom = from;
 			fake_mciSendCommandA(MAGIC_DEVICEID, MCI_PLAY, MCI_FROM, (DWORD_PTR)&parms);
 			return 0;
 		}
 		if (sscanf(cmdbuf, "play %*s to %d", &to) == 1)
 		{
-			static MCI_PLAY_PARMS parms;
 			parms.dwTo = to;
 			fake_mciSendCommandA(MAGIC_DEVICEID, MCI_PLAY, MCI_TO, (DWORD_PTR)&parms);
 			return 0;
 		}
+
+		parms.dwFrom = info.first;
+		fake_mciSendCommandA(MAGIC_DEVICEID, MCI_PLAY, MCI_FROM, (DWORD_PTR)&parms);
+		return 0;
 	}
 
 	return relay_mciSendStringA(cmd, ret, cchReturn, hwndCallback);

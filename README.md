@@ -34,6 +34,9 @@ ogg-winmm also provides separate volume control for CDDA/MIDI/WAVE, which has be
 
 # Revisions:
 
+v.2023.01.18:
+- Implement play/seek/length/position for mciSendString.
+
 v.2022.06.26:
 - Fix MIDI file open bypass.
 

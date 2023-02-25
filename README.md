@@ -34,6 +34,10 @@ ogg-winmm also provides separate volume control for CDDA/MIDI/WAVE, which has be
 
 # Revisions:
 
+v.2023.02.26:
+- Implement time range playing down to seconds instead of always track-wise playing.
+- Implement pause and resume.
+
 v.2023.01.18:
 - Implement play/seek/length/position for mciSendString.
 

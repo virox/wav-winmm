@@ -25,6 +25,8 @@
 #define MAGIC_DEVICEID 0xCDDA
 #define MAX_TRACKS 99
 
+//#define _DEBUG
+
 #ifdef _DEBUG
 #define dprintf(...) if (fh) { fprintf(fh, __VA_ARGS__); fflush(NULL); }
 FILE *fh = NULL;
@@ -43,7 +45,9 @@ struct track_info
 struct play_info
 {
 	int first;
+	unsigned int from; /* seconds */
 	int last;
+	unsigned int to; /* seconds */
 };
 
 static struct track_info tracks[MAX_TRACKS];
@@ -56,8 +60,8 @@ const char alias_def[] = "cdaudio";
 char alias_s[100] = "cdaudio";
 char music_path[MAX_PATH];
 
+int mode = MCI_MODE_STOP;
 int command = 0;
-int playing = 0;
 int notify = 0;
 int current  = 0;
 int firstTrack = 0;
@@ -70,32 +74,29 @@ int cddaVol = -1;
 int midiVol = -1;
 int waveVol = -1;
 
-/* NOTE: The player is currently incapable of playing tracks from a specified
- * position. Instead it plays whole tracks only. Previous pause logic using
- * Sleep caused crackling sound and was not acceptable. Future plan is to add
- * proper seek commands to support playback from arbitrary positions on the track.
- */
-
 int WINAPI player_main(void *unused)
 {
 	while (WaitForSingleObject(event, INFINITE) == 0) {
 		int first = info.first < firstTrack ? firstTrack : info.first;
-		int last = info.last - 1 < first ? first : info.last - 1; /* -1 for plr logic */
+		int last = info.last > lastTrack ? lastTrack : info.last;
+		unsigned int from = info.from, to = info.to;
 		current = first;
-		dprintf("[Thread] From %d to %d\n", first, last);
+		dprintf("[Thread] From %d (%d sec) to %d (%d sec)\n", first, from, last, to);
 
 		while (command == MCI_PLAY && current <= last) {
 			dprintf("[Thread] Current track %s\n", tracks[current].path);
 			tracks[current].tick = clock();
-			playing = 1;
-			plr_play(tracks[current].path);
+			mode = MCI_MODE_PLAY;
+			plr_play(tracks[current].path, current == first ? from : 0, current == last ? to : 0);
 
 			while (command == MCI_PLAY) {
-				if (plr_pump() == 0) {
+				int more = plr_pump();
+				if (more == 0) {
 					current++;
 					break;
+				} else if (more < 0) {
+					break;
 				}
-
 			}
 		}
 
@@ -103,13 +104,10 @@ int WINAPI player_main(void *unused)
 		if (command == MCI_PLAY && notify) {
 			notify = 0;
 			SendNotifyMessageA(window, MM_MCINOTIFY, MCI_NOTIFY_SUCCESSFUL, MAGIC_DEVICEID);
-			/* NOTE: Notify message after successful playback is not working in Vista+.
-			   MCI_STATUS_MODE does not update to show that the track is no longer playing.
-			   Bug or broken design in mcicda.dll (also noted by the Wine team) */
 			dprintf("[Thread] Send MCI_NOTIFY_SUCCESSFUL message\n");
 		}
 
-		playing = 0;
+		mode = MCI_MODE_STOP;
 		plr_reset();
 		if (command == MCI_DELETE) break;
 	}
@@ -262,14 +260,24 @@ MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR 
 			case MCI_PLAY:
 				{
 					dprintf("  MCI_PLAY\n");
+					if (mode == MCI_MODE_PLAY) {
+						dprintf("    already playing\n");
+						break;
+					} else if (mode == MCI_MODE_PAUSE) {
+						dprintf("    resume instead of new play\n");
+						mode = MCI_MODE_PLAY;
+						plr_resume();
+						break;
+					}
+
 					LPMCI_PLAY_PARMS parms = (LPVOID)dwParam;
 
 					if (fdwCommand & MCI_FROM) {
 						dprintf("    dwFrom: 0x%08X\n", parms->dwFrom);
 
-						/* FIXME: rounding to nearest track */
 						if (time_format == MCI_FORMAT_TMSF) {
 							info.first = MCI_TMSF_TRACK(parms->dwFrom);
+							info.from = MCI_TMSF_MINUTE(parms->dwFrom) * 60 + MCI_TMSF_SECOND(parms->dwFrom);
 
 							dprintf("      TRACK  %d\n", MCI_TMSF_TRACK(parms->dwFrom));
 							dprintf("      MINUTE %d\n", MCI_TMSF_MINUTE(parms->dwFrom));
@@ -285,6 +293,7 @@ MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR 
 							for (int i = firstTrack; i <= lastTrack; i++) {
 								if (tracks[i].position + tracks[i].length > parms->dwFrom) {
 									info.first = i;
+									info.from = parms->dwFrom - tracks[i].position;
 									break;
 								}
 							}
@@ -294,11 +303,10 @@ MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR 
 								plr_stop();
 								return 0;
 							}
-							dprintf("      mapped dwFrom to track %d\n", info.first);
+							dprintf("      mapped dwFrom to track %d (%d sec)\n", info.first, info.from);
 						}
-						if (info.first < firstTrack) info.first = firstTrack;
-						else if (info.first > lastTrack) info.first = lastTrack;
 						info.last = lastTrack; /* default MCI_TO */
+						info.to = -1;
 					}
 
 					if (fdwCommand & MCI_TO) {
@@ -306,6 +314,7 @@ MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR 
 
 						if (time_format == MCI_FORMAT_TMSF) {
 							info.last = MCI_TMSF_TRACK(parms->dwTo);
+							info.to = MCI_TMSF_MINUTE(parms->dwTo) * 60 + MCI_TMSF_SECOND(parms->dwTo) + (MCI_TMSF_FRAME(parms->dwTo) ? 1 : 0);
 
 							dprintf("      TRACK  %d\n", MCI_TMSF_TRACK(parms->dwTo));
 							dprintf("      MINUTE %d\n", MCI_TMSF_MINUTE(parms->dwTo));
@@ -313,31 +322,34 @@ MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR 
 							dprintf("      FRAME  %d\n", MCI_TMSF_FRAME(parms->dwTo));
 						} else { /* MSF or Milliseconds */
 							if (time_format == MCI_FORMAT_MSF) {
-								parms->dwTo = MCI_MSF_MINUTE(parms->dwTo) * 60 + MCI_MSF_SECOND(parms->dwTo);  
+								parms->dwTo = MCI_MSF_MINUTE(parms->dwTo) * 60 + MCI_MSF_SECOND(parms->dwTo) + (MCI_MSF_FRAME(parms->dwTo) ? 1 : 0);  
 							} else {
 								parms->dwTo /= 1000;
 							}
 							info.last = lastTrack;
+							info.to = -1;
 							for (int i = info.first; i <= lastTrack; i++) {
 								if (tracks[i].position + tracks[i].length >= parms->dwTo) {
 									info.last = i;
+									info.to = parms->dwTo - tracks[i].position;
 									break;
 								}
 							}
-							dprintf("      mapped dwTo to track %d\n", info.last);
+							dprintf("      mapped dwTo to track %d (%d sec)\n", info.last, info.to);
 						}
-						if (info.last < info.first) info.last = info.first;
-						else if (info.last > lastTrack) info.last = lastTrack;
+						if (!info.to) { // Convert track range from [) to []
+							info.last--;
+							info.to = -1;
+						}
 					}
 
-					if ((info.first && (fdwCommand & MCI_FROM)) || (info.last && (fdwCommand & MCI_TO))) {
-						if (playing) {
-							command = MCI_STOP;
-							plr_stop();
-							while (playing) {
-								Sleep(0);
-							}
+					if ((fdwCommand & MCI_FROM) && (fdwCommand & MCI_TO) && (parms->dwFrom == parms->dwTo)) {
+						if (notify) {
+							notify = 0;
+							SendNotifyMessageA(window, MM_MCINOTIFY, MCI_NOTIFY_SUCCESSFUL, MAGIC_DEVICEID);
+							dprintf("(FROM == TO) Send message but no play\n");
 						}
+					} else if ((info.first && (fdwCommand & MCI_FROM)) || (info.last && (fdwCommand & MCI_TO))) {
 						if (event) {
 							command = MCI_PLAY;
 							SetEvent(event);
@@ -352,11 +364,11 @@ MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR 
 					plr_stop(); /* Make STOP command instant. */
 				}
 				break;
-			case MCI_PAUSE: /* FIXME: MCICDA does not support resume, so pause should be equivalent to stop */
+			case MCI_PAUSE: /* FIXME: MCICDA does not support resume? */
 				{
 					dprintf("  MCI_PAUSE\n");
-					command = MCI_STOP;
-					plr_stop();
+					plr_pause();
+					mode = MCI_MODE_PAUSE;
 				}
 				break;
 			case MCI_INFO: /* Handling of MCI_INFO */
@@ -473,7 +485,8 @@ MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR 
 										parms->dwReturn = 0;
 									}
 								} else { /* Playing position */
-									unsigned int ms = playing ? (clock() - tracks[current].tick) * 1000 / CLOCKS_PER_SEC : 0;
+									// FIXME: fix position for pause
+									unsigned int ms = mode == MCI_MODE_PLAY ? (clock() - tracks[current].tick) * 1000 / CLOCKS_PER_SEC : 0;
 									if (time_format == MCI_FORMAT_MILLISECONDS) {
 										parms->dwReturn = ms;
 									} else if (time_format == MCI_FORMAT_MSF) {
@@ -490,8 +503,7 @@ MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR 
 								break;
 							case MCI_STATUS_MODE:
 								dprintf("      MCI_STATUS_MODE\n");
-								dprintf("        we are %s\n", playing ? "playing" : "NOT playing");
-								parms->dwReturn = playing ? MCI_MODE_PLAY : MCI_MODE_STOP;
+								parms->dwReturn = mode;
 								break;
 							case MCI_STATUS_MEDIA_PRESENT:
 								dprintf("      MCI_STATUS_MEDIA_PRESENT\n");
@@ -518,12 +530,12 @@ MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR 
 					dprintf("  dwReturn 0x%08X\n", parms->dwReturn);
 				}
 				break;
-			case MCI_RESUME: /* FIXME: MCICDA does not support resume, so resume should be equivalent to play */
+			case MCI_RESUME: /* FIXME: MCICDA does not support resume? */
 				{
 					dprintf("  MCI_RESUME\n");
-					if (event) {
-						command = MCI_PLAY;
-						SetEvent(event);
+					if (mode == MCI_MODE_PAUSE) {
+						mode = MCI_MODE_PLAY;
+						plr_resume();
 					}
 				}
 				break;
@@ -729,13 +741,19 @@ MCIERROR WINAPI fake_mciSendStringA(LPCSTR cmd, LPSTR ret, UINT cchReturn, HANDL
 		/* Add: Mode handling */
 		if (strstr(cmdbuf, "mode"))
 		{
-			if (playing) {
-				dprintf("   -> playing\n");
-				strcpy(ret, "playing");
-			}
-			else{
-				dprintf("   -> stopped\n");
-				strcpy(ret, "stopped");
+			switch (mode) {
+				case MCI_MODE_PLAY:
+					dprintf("   -> playing\n");
+					strcpy(ret, "playing");
+					break;
+				case MCI_MODE_PAUSE:
+					dprintf("   -> paused\n");
+					strcpy(ret, "paused");
+					break;
+				default:
+					dprintf("   -> stopped\n");
+					strcpy(ret, "stopped");
+					break;
 			}
 			return 0;
 		}
@@ -745,7 +763,7 @@ MCIERROR WINAPI fake_mciSendStringA(LPCSTR cmd, LPSTR ret, UINT cchReturn, HANDL
 	int from = -1, to = -1;
 	sprintf(cmp_str, "play %s", alias_s);
 	if (strstr(cmdbuf, cmp_str)){
-		MCI_PLAY_PARMS parms;
+		MCI_PLAY_PARMS parms = {0};
 
 		if (strstr(cmdbuf, "notify")){
 			notify = 1; /* storing the notify request */

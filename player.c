@@ -4,10 +4,11 @@
 #include <vorbis/vorbisfile.h>
 
 #define WAV_BUF_CNT	(2)		// Dual buffer
-#define WAV_BUF_LEN	(48000*2)	// 48000Hz, 16-bit, 2-channel, 1/2 second buffer
+#define WAV_BUF_LEN	(44100*2)	// 44100Hz, 16-bit, 2-channel, 1/2 second buffer
 
 bool		plr_run			= false;
 bool		plr_bsy			= false;
+unsigned int	plr_len			= 0;
 float		plr_vol			= -1.0;
 
 HWAVEOUT	plr_hw	 		= NULL;
@@ -59,7 +60,7 @@ void plr_reset()
 	}
 }
 
-int plr_play(const char *path)
+int plr_play(const char *path, unsigned int from, unsigned int to)
 {
 	plr_reset();
 
@@ -84,6 +85,7 @@ int plr_play(const char *path)
 		ov_clear(&plr_vf);
 		CloseHandle(plr_ev);
 		plr_ev = NULL;
+		plr_hw = NULL;
 		return 0;
 	}
 
@@ -92,6 +94,9 @@ int plr_play(const char *path)
 		plr_sta[i] = 0;
 		plr_hdr[i].dwFlags = WHDR_DONE;
 	}
+
+	if (from) ov_time_seek(&plr_vf, (double)from);
+	plr_len = to > from ? (to - from) * vi->rate * 2 * vi->channels : -1; 
 
 	plr_run = true;
 	return 1;
@@ -111,15 +116,25 @@ void plr_stop()
 	}
 }
 
+void plr_pause()
+{
+	if (plr_hw) waveOutPause(plr_hw);
+}
+
+void plr_resume()
+{
+	if (plr_hw) waveOutRestart(plr_hw);
+}
+
 int plr_pump()
 {
-	if (!plr_run || !plr_vf.datasource) return 0;
+	if (!plr_run || !plr_vf.datasource) return -1;
 
 	plr_bsy = true;
 
 	if (WaitForSingleObject(plr_ev, INFINITE) != 0 || !plr_run) {
 		plr_bsy = false;
-		return 0;
+		return -1;
 	}
 
 	for (int n = 0, i = plr_que; n < WAV_BUF_CNT; n++, i = (i+1) % WAV_BUF_CNT) {
@@ -133,7 +148,7 @@ int plr_pump()
 		}
 
 		char *buf = plr_buf[i];
-		int pos = 0, size = plr_fmt.nSamplesPerSec * 2;
+		unsigned int pos = 0, size = plr_len > WAV_BUF_LEN ? WAV_BUF_LEN : plr_len;
 		while (pos < size) {
 			long bytes = ov_read(&plr_vf, buf + pos, size - pos, 0, 2, 1, NULL);
 
@@ -154,6 +169,7 @@ int plr_pump()
 			plr_bsy = false;
 			return 0;
 		}
+		plr_len -= pos;
 
 		/* volume control, kinda nasty */
 		if (plr_vol != -1) {

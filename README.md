@@ -43,7 +43,8 @@ NOTE: It actually can also work on Win95/98 if you follow the extra procedure be
 # Revisions:
 
 v.2023.02.28
-- Add compatibility support to Win95/98.
+- Improve time range precision from second to millisecond.
+- Add compatibility support for Win95/98.
 
 v.2023.02.26:
 - Implement time range playing down to seconds instead of always track-wise playing.

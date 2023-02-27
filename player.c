@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdbool.h>
+#include <math.h>
 #include <windows.h>
 #include <vorbis/vorbisfile.h>
 
@@ -26,16 +27,12 @@ void plr_volume(int vol)
 	else plr_vol = vol / 100.0;
 }
 
-int plr_length(const char *path)
+unsigned int plr_length(const char *path) // in millisecond
 {
 	OggVorbis_File  vf;
-
 	if (ov_fopen(path, &vf) != 0) return 0;
-
-	int ret = (int)ov_time_total(&vf, -1);
-
+	unsigned int ret = (unsigned int)(ov_time_total(&vf, -1) * 1000);
 	ov_clear(&vf);
-
 	return ret;
 }
 
@@ -95,8 +92,8 @@ int plr_play(const char *path, unsigned int from, unsigned int to)
 		plr_hdr[i].dwFlags = WHDR_DONE;
 	}
 
-	if (from) ov_time_seek(&plr_vf, (double)from);
-	plr_len = to > from ? (to - from) * vi->rate * 2 * vi->channels : -1; 
+	if (from) ov_time_seek(&plr_vf, (double)from / 1000);
+	plr_len = to > from ? (unsigned int)ceil((to - from) / 1000.0 * vi->rate) * 2 * vi->channels : -1; // heed alignment 
 
 	plr_run = true;
 	return 1;

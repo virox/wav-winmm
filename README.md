@@ -25,6 +25,14 @@ ogg-winmm also provides separate volume control for CDDA/MIDI/WAVE, which has be
 
 5. Run the game and enjoy the emulated CD audio.
 
+# Requirement:
+
+- Minimum operating system: Windows XP or newer. 
+
+NOTE: It actually can also work on Win95/98 if you follow the extra procedure below:
+1. Rename "winmm.dll" to "wincd.dll", and rename "winmm.ini" to "wincd.ini".
+2. Use a hex editor to open the game's exe file, then replace all occurrences of string "winmm.dll" (case-insensitive) to "wincd.dll".
+
 # Building:
 
 - Use MinGW 6.3.0-1 or later to build on Windows OS.
@@ -33,6 +41,9 @@ ogg-winmm also provides separate volume control for CDDA/MIDI/WAVE, which has be
   - libvorbis (https://github.com/xiph/vorbis.git)
 
 # Revisions:
+
+v.2023.02.28
+- Add compatibility support to Win95/98.
 
 v.2023.02.26:
 - Implement time range playing down to seconds instead of always track-wise playing.

@@ -53,6 +53,7 @@ struct play_info
 static struct track_info tracks[MAX_TRACKS];
 static struct play_info info = {0, 0};
 
+DWORD thread = 0; // Needed for Win85/98 compatibility
 HANDLE player = NULL;
 HANDLE event = NULL;
 HWND window = NULL;
@@ -74,7 +75,7 @@ int cddaVol = -1;
 int midiVol = -1;
 int waveVol = -1;
 
-int WINAPI player_main(void *unused)
+long unsigned int WINAPI player_main(void *unused)
 {
 	while (WaitForSingleObject(event, INFINITE) == 0) {
 		int first = info.first < firstTrack ? firstTrack : info.first;
@@ -170,11 +171,12 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 
 			if (i != 1 && !tracks[i].length) break;
 		}
-		dprintf("Emulating total of %d CD tracks.\n\n", numTracks);
+		dprintf("Emulating total of %d CD tracks.\n", numTracks);
 
 		if (numTracks) {
 			event = CreateEvent(NULL, FALSE, FALSE, NULL);
-			player = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)player_main, NULL, 0, NULL);
+			player = CreateThread(NULL, 0, player_main, NULL, 0, &thread);
+			dprintf("Created thread 0x%X\n\n", player);
 		}
 	} else if (fdwReason == DLL_PROCESS_DETACH) {
 #ifdef _DEBUG

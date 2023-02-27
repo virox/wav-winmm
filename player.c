@@ -18,7 +18,7 @@ WAVEFORMATEX	plr_fmt			= {0};
 int		plr_que			= 0;
 int		plr_sta[WAV_BUF_CNT]	= {0};
 WAVEHDR		plr_hdr[WAV_BUF_CNT]	= {0};
-char		plr_buf[WAV_BUF_CNT][WAV_BUF_LEN];
+char		plr_buf[WAV_BUF_CNT][WAV_BUF_LEN] __attribute__ ((aligned(4)));
 
 void plr_volume(int vol)
 {

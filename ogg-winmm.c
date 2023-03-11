@@ -151,7 +151,6 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 		strcat(music_path, "\\MUSIC");
 
 		dprintf("ogg-winmm music directory is %s\n", music_path);
-		dprintf("ogg-winmm searching tracks...\n");
 
 		memset(tracks, 0, sizeof(tracks));
 		unsigned int position = 0;
@@ -164,20 +163,21 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 			if (tracks[i].length) {
 				dprintf("Track %02u: %02u:%02u:%03u @ %u ms\n", i, tracks[i].length / 60000, tracks[i].length / 1000 % 60, tracks[i].length % 1000, tracks[i].position);
 				if (!firstTrack) firstTrack = i;
-				numTracks = lastTrack = i;
+				lastTrack = i;
+				numTracks++;
 				position += tracks[i].length;
 			} else {
 				tracks[i].path[0] = '\0';
 			}
 
-			if (i != 1 && !tracks[i].length) break;
+			if (numTracks && !tracks[i].length) break;
 		}
 		dprintf("Emulating total of %d CD tracks.\n", numTracks);
 
 		if (numTracks) {
 			event = CreateEvent(NULL, FALSE, FALSE, NULL);
 			player = CreateThread(NULL, 0, player_main, NULL, 0, &thread);
-			dprintf("Created thread 0x%X\n\n", player);
+			dprintf("Creating thread 0x%X\n\n", player);
 		}
 	} else if (fdwReason == DLL_PROCESS_DETACH) {
 #ifdef _DEBUG
@@ -263,10 +263,7 @@ MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR 
 			case MCI_PLAY:
 				{
 					dprintf("  MCI_PLAY\n");
-					if (mode == MCI_MODE_PLAY) {
-						dprintf("    already playing\n");
-						break;
-					} else if (mode == MCI_MODE_PAUSE) {
+					if (mode == MCI_MODE_PAUSE) {
 						dprintf("    resume instead of new play\n");
 						mode = MCI_MODE_PLAY;
 						plr_resume();
@@ -349,6 +346,11 @@ MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR 
 						}
 					} else if ((info.first && (fdwCommand & MCI_FROM)) || (info.last && (fdwCommand & MCI_TO))) {
 						if (event) {
+							if (mode != MCI_MODE_STOP) {
+								command = MCI_STOP;
+								plr_stop();
+								while (mode != MCI_MODE_STOP) Sleep(1);
+							}
 							command = MCI_PLAY;
 							SetEvent(event);
 						}
@@ -487,7 +489,7 @@ MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR 
 								break;
 							case MCI_STATUS_NUMBER_OF_TRACKS:
 								dprintf("      MCI_STATUS_NUMBER_OF_TRACKS\n");
-								parms->dwReturn = numTracks;
+								parms->dwReturn = lastTrack; // including data tracks
 								break;
 							case MCI_STATUS_MODE:
 								dprintf("      MCI_STATUS_MODE\n");
@@ -668,8 +670,8 @@ MCIERROR WINAPI fake_mciSendStringA(LPCSTR cmd, LPSTR ret, UINT cchReturn, HANDL
 	if (strstr(cmdbuf, cmp_str)){
 		if (strstr(cmdbuf, "number of tracks"))
 		{
-			dprintf("  Returning number of tracks (%d)\n", numTracks);
-			sprintf(ret, "%d", numTracks);
+			dprintf("  Returning number of tracks (%d)\n", lastTrack);
+			sprintf(ret, "%u", lastTrack); // including data tracks
 			return 0;
 		}
 		int track = 0;

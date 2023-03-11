@@ -11,7 +11,7 @@ ogg-winmm also provides separate volume control for CDDA/MIDI/WAVE, which has be
 1. Rip the audio tracks from the CD and encode them to ogg files, following naming convention:
 > **Track02.ogg, Track03.ogg, Track04.ogg, ...**
 
-  Note the file names can not contain any whitespace.
+  Note the file names can not contain any whitespace, and the track numbers must be contiguous without gap in the middle.
 
   Also note the numbering usually starts from 02 since on mixed mode CDs the first track is a data track.
   
@@ -41,6 +41,10 @@ NOTE: It actually can also work on Win95/98 if you follow the extra procedure be
   - libvorbis (https://github.com/xiph/vorbis.git)
 
 # Revisions:
+
+v.2023.03.11
+- Allow more than 1 data track before audio track.  
+- Fix total track number.
 
 v.2023.02.28
 - Improve time range precision from second to millisecond.

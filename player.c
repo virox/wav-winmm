@@ -108,7 +108,7 @@ void plr_stop()
 	if (plr_ev) {
 		SetEvent(plr_ev);
 		while (plr_bsy) {
-			Sleep(0);
+			Sleep(1);
 		}
 	}
 }
@@ -192,7 +192,7 @@ int plr_pump()
 		WAVEHDR *hdr = &plr_hdr[plr_que];
 		if (waveOutPrepareHeader(plr_hw, hdr, sizeof(WAVEHDR)) != MMSYSERR_NOERROR || waveOutWrite(plr_hw, hdr, sizeof(WAVEHDR)) != MMSYSERR_NOERROR) {
 			SetEvent(plr_ev);
-			Sleep(0);
+			Sleep(1);
 			break;
 		}
 		plr_sta[plr_que] = 0;

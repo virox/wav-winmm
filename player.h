@@ -1,4 +1,4 @@
-void plr_volume(int vol);
+void plr_volume(int vol_l, int vol_r);
 void plr_reset();
 void plr_stop();
 void plr_pause();

@@ -10,7 +10,7 @@
 bool		plr_run			= false;
 bool		plr_bsy			= false;
 unsigned int	plr_len			= 0;
-float		plr_vol			= -1.0;
+float		plr_vol[2]		= {-1.0, -1.0}; // Left, Right
 
 HWAVEOUT	plr_hw	 		= NULL;
 HANDLE		plr_ev  		= NULL;
@@ -21,10 +21,13 @@ int		plr_sta[WAV_BUF_CNT]	= {0};
 WAVEHDR		plr_hdr[WAV_BUF_CNT]	= {0};
 char		plr_buf[WAV_BUF_CNT][WAV_BUF_LEN] __attribute__ ((aligned(4)));
 
-void plr_volume(int vol)
+void plr_volume(int vol_l, int vol_r)
 {
-	if (vol < 0 || vol > 99) plr_vol = -1.0;
-	else plr_vol = vol / 100.0;
+	if (vol_l < 0 || vol_l > 99) plr_vol[0] = -1.0;
+	else plr_vol[0] = vol_l / 100.0;
+
+	if (vol_r < 0 || vol_r > 99) plr_vol[1] = -1.0;
+	else plr_vol[1] = vol_r / 100.0;
 }
 
 unsigned int plr_length(const char *path) // in millisecond
@@ -169,10 +172,12 @@ int plr_pump()
 		plr_len -= pos;
 
 		/* volume control, kinda nasty */
-		if (plr_vol != -1) {
+		if (plr_vol[0] != -1.0 || plr_vol[1] != -1.0) {
 			short *sbuf = (short *)buf;
-			for (int j = 0, end = pos / 2; j < end; j++)
-				sbuf[j] *= plr_vol;
+			for (int j = 0, end = pos / 2; j < end; j+=2) {
+				if (plr_vol[0] != -1.0) sbuf[j] *= plr_vol[0];
+				if (plr_vol[1] != -1.0) sbuf[j+1] *= plr_vol[1];
+			}
 		}
 
 		waveOutUnprepareHeader(plr_hw, hdr, sizeof(WAVEHDR));

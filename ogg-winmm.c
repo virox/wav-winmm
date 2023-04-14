@@ -51,7 +51,7 @@ struct play_info
 	unsigned int to; /* milliseconds, 0 means to track end */
 };
 
-static struct track_info tracks[MAX_TRACKS];
+static struct track_info tracks[MAX_TRACKS+1]; // Track 0 is reserved.
 static struct play_info info = {0, 0};
 
 DWORD thread = 0; // Needed for Win85/98 compatibility
@@ -71,7 +71,7 @@ int lastTrack = 0;
 int numTracks = 0;
 int time_format = MCI_FORMAT_MSF;
 
-DWORD auxVol = -1;
+DWORD auxVol = -1; // HWORD: Right, LWORD: Left
 int cddaVol = -1;
 int midiVol = -1;
 int waveVol = -1;
@@ -141,7 +141,7 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 			if (midiVol < 0 || midiVol > 99 ) midiVol = -1;
 			if (waveVol < 0 || waveVol > 99 ) waveVol = -1;
 
-			plr_volume(cddaVol);
+			plr_volume(cddaVol, cddaVol);
 			stub_midivol(midiVol);
 			stub_wavevol(waveVol);
 		}
@@ -150,34 +150,37 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 		if (last) *last = '\0';
 		strcat(music_path, "\\MUSIC");
 
-		dprintf("ogg-winmm music directory is %s\n", music_path);
+		DWORD fa = GetFileAttributes(music_path);
+		if (fa != INVALID_FILE_ATTRIBUTES && fa & FILE_ATTRIBUTE_DIRECTORY) {
+			dprintf("ogg-winmm music directory is %s\n", music_path);
 
-		memset(tracks, 0, sizeof(tracks));
-		unsigned int position = 0;
+			memset(tracks, 0, sizeof(tracks));
+			unsigned int position = 0;
 
-		for (int i = 1; i <= MAX_TRACKS; i++) {
-			snprintf(tracks[i].path, MAX_PATH, "%s\\Track%02d.ogg", music_path, i);
-			tracks[i].position = position;
-			tracks[i].length = plr_length(tracks[i].path);
+			for (int i = 1; i <= MAX_TRACKS; i++) {
+				snprintf(tracks[i].path, MAX_PATH, "%s\\Track%02d.ogg", music_path, i);
+				tracks[i].position = position;
+				tracks[i].length = plr_length(tracks[i].path);
 
-			if (tracks[i].length) {
-				dprintf("Track %02u: %02u:%02u:%03u @ %u ms\n", i, tracks[i].length / 60000, tracks[i].length / 1000 % 60, tracks[i].length % 1000, tracks[i].position);
-				if (!firstTrack) firstTrack = i;
-				lastTrack = i;
-				numTracks++;
-				position += tracks[i].length;
-			} else {
-				tracks[i].path[0] = '\0';
+				if (tracks[i].length) {
+					dprintf("Track %02u: %02u:%02u:%03u @ %u ms\n", i, tracks[i].length / 60000, tracks[i].length / 1000 % 60, tracks[i].length % 1000, tracks[i].position);
+					if (!firstTrack) firstTrack = i;
+					lastTrack = i;
+					numTracks++;
+					position += tracks[i].length;
+				} else {
+					tracks[i].path[0] = '\0';
+				}
+
+				if (numTracks && !tracks[i].length) break;
 			}
+			dprintf("Emulating total of %d CD tracks.\n", numTracks);
 
-			if (numTracks && !tracks[i].length) break;
-		}
-		dprintf("Emulating total of %d CD tracks.\n", numTracks);
-
-		if (numTracks) {
-			event = CreateEvent(NULL, FALSE, FALSE, NULL);
-			player = CreateThread(NULL, 0, player_main, NULL, 0, &thread);
-			dprintf("Creating thread 0x%X\n\n", player);
+			if (numTracks) {
+				event = CreateEvent(NULL, FALSE, FALSE, NULL);
+				player = CreateThread(NULL, 0, player_main, NULL, 0, &thread);
+				dprintf("Creating thread 0x%X\n\n", player);
+			}
 		}
 	} else if (fdwReason == DLL_PROCESS_DETACH) {
 #ifdef _DEBUG
@@ -344,17 +347,60 @@ MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR 
 							SendNotifyMessageA(window, MM_MCINOTIFY, MCI_NOTIFY_SUCCESSFUL, MAGIC_DEVICEID);
 							dprintf("(FROM == TO) Send message but no play\n");
 						}
-					} else if ((info.first && (fdwCommand & MCI_FROM)) || (info.last && (fdwCommand & MCI_TO))) {
-						if (event) {
-							if (mode != MCI_MODE_STOP) {
-								command = MCI_STOP;
-								plr_stop();
-								while (mode != MCI_MODE_STOP) Sleep(1);
+					} else if (event) {
+						if (mode != MCI_MODE_STOP) {
+							command = MCI_STOP;
+							plr_stop();
+							while (mode != MCI_MODE_STOP) Sleep(1);
+						}
+						command = MCI_PLAY;
+						SetEvent(event);
+					}
+				}
+				break;
+			case MCI_SEEK:
+				{
+					dprintf("  MCI_SEEK\n");
+					command = MCI_STOP;
+					plr_stop();
+
+					if (fdwCommand & MCI_SEEK_TO_START) {
+						dprintf("    MCI_SEEK_TO_START\n");
+						info.first = firstTrack;
+						info.from = 0;
+					} else if (fdwCommand & MCI_SEEK_TO_END) {
+						dprintf("    MCI_SEEK_TO_END\n");
+						info.first = lastTrack + 1;
+						info.from = 0;
+					} else if (fdwCommand & MCI_TO) {
+						dprintf("    MCI_TO\n");
+						LPMCI_SEEK_PARMS parms = (LPVOID)dwParam;
+						if (time_format == MCI_FORMAT_TMSF) {
+							info.first = MCI_TMSF_TRACK(parms->dwTo);
+							info.from = MCI_TMSF_MINUTE(parms->dwTo) * 60000 + MCI_TMSF_SECOND(parms->dwTo) * 1000 + MCI_TMSF_FRAME(parms->dwTo) * 1000 / 75;
+
+							dprintf("      TRACK  %d\n", MCI_TMSF_TRACK(parms->dwTo));
+							dprintf("      MINUTE %d\n", MCI_TMSF_MINUTE(parms->dwTo));
+							dprintf("      SECOND %d\n", MCI_TMSF_SECOND(parms->dwTo));
+							dprintf("      FRAME  %d\n", MCI_TMSF_FRAME(parms->dwTo));
+						} else { /* MSF or millisecond */
+							if (time_format == MCI_FORMAT_MSF) {
+								parms->dwTo = MCI_MSF_MINUTE(parms->dwTo) * 60000 + MCI_MSF_SECOND(parms->dwTo) * 1000 + MCI_MSF_FRAME(parms->dwTo) * 1000 / 75;  
 							}
-							command = MCI_PLAY;
-							SetEvent(event);
+							info.first = lastTrack;
+							info.from = 0;
+							for (int i = info.first; i <= lastTrack; i++) {
+								if (tracks[i].position + tracks[i].length >= parms->dwTo) {
+									info.first = i;
+									info.from = parms->dwTo - tracks[i].position;
+									break;
+								}
+							}
+							dprintf("      mapped dwTo to track %d (%u ms)\n", info.first, info.from);
 						}
 					}
+					info.last = lastTrack;
+					info.to = 0;
 				}
 				break;
 			case MCI_STOP:
@@ -379,11 +425,31 @@ MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR 
 					if (fdwCommand & MCI_INFO_PRODUCT) {
 						dprintf("    MCI_INFO_PRODUCT\n");
 						strncpy((char*)parms->lpstrReturn, alias_s, parms->dwRetSize); /* name */
-					}
-
-					if (fdwCommand & MCI_INFO_MEDIA_IDENTITY) {
+					} else if (fdwCommand & MCI_INFO_MEDIA_IDENTITY) {
 						dprintf("    MCI_INFO_MEDIA_IDENTITY\n");
 						memcpy((LPVOID)(parms->lpstrReturn), MEDIA_IDENTITY, parms->dwRetSize); /* 16 hexadecimal digits */
+					}
+				}
+				break;
+			case MCI_GETDEVCAPS:
+				{
+					dprintf("  MCI_GETDEVCAPS\n");
+					LPMCI_GETDEVCAPS_PARMS parms = (LPVOID)dwParam;
+
+					if (fdwCommand & MCI_GETDEVCAPS_ITEM) {
+						switch (parms->dwItem) {
+							case MCI_GETDEVCAPS_DEVICE_TYPE:
+								parms->dwReturn = MCI_DEVTYPE_CD_AUDIO;
+								break;
+							case MCI_GETDEVCAPS_HAS_AUDIO:
+							case MCI_GETDEVCAPS_CAN_EJECT:
+							case MCI_GETDEVCAPS_CAN_PLAY:
+								parms->dwReturn = TRUE;
+								break;
+							default:
+								parms->dwReturn = 0;
+						}
+						dprintf("    MCI_GETDEVCAPS_ITEM, dwItem=0x%08X, dwReturn=0x%08X\n", parms->dwItem, parms->dwReturn);
 					}
 				}
 				break;
@@ -422,9 +488,7 @@ MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR 
 					if (fdwCommand & MCI_SYSINFO_NAME) {
 						dprintf("    MCI_SYSINFO_NAME\n");
 						strncpy((char*)parms->lpstrReturn, alias_s, parms->dwRetSize); /* name */
-					}
-
-					if (fdwCommand & MCI_SYSINFO_QUANTITY) {
+					} else if (fdwCommand & MCI_SYSINFO_QUANTITY) {
 						dprintf("    MCI_SYSINFO_QUANTITY\n");
 						*(DWORD*)parms->lpstrReturn = 1; /* quantity = 1 */
 					}
@@ -821,8 +885,8 @@ MMRESULT WINAPI fake_auxSetVolume(UINT uDeviceID, DWORD dwVolume)
 	dprintf("fake_auxSetVolume(uDeviceId=%08X, dwVolume=%08X)\n", uDeviceID, dwVolume);
 
 	auxVol = dwVolume;
-	/* Use left channel vol to control both channels */
-	if (cddaVol == -1) plr_volume((auxVol & 0xFFFF) * 100 / 65535);
+	/* Allow aux volume control when no user override */
+	if (cddaVol == -1) plr_volume((auxVol & 0xFFFF) * 100 / 65535, (auxVol >> 16) * 100 / 65535);
 
 	return MMSYSERR_NOERROR;
 }

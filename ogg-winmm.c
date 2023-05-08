@@ -51,8 +51,8 @@ struct play_info
 	unsigned int to; /* milliseconds, 0 means to track end */
 };
 
-static struct track_info tracks[MAX_TRACKS+1]; // Track 0 is reserved.
-static struct play_info info = {0, 0};
+struct track_info tracks[MAX_TRACKS+1]; // Track 0 is reserved.
+struct play_info info = {0};
 
 DWORD thread = 0; // Needed for Win85/98 compatibility
 HANDLE player = NULL;
@@ -76,7 +76,7 @@ int cddaVol = -1;
 int midiVol = -1;
 int waveVol = -1;
 
-long unsigned int WINAPI player_main(void *unused)
+DWORD WINAPI player_main(void *unused)
 {
 	while (WaitForSingleObject(event, INFINITE) == 0) {
 		int first = info.first < firstTrack ? firstTrack : info.first;
@@ -706,23 +706,21 @@ MCIERROR WINAPI fake_mciSendStringA(LPCSTR cmd, LPSTR ret, UINT cchReturn, HANDL
 	/* Handle "set cdaudio/alias time format" */
 	sprintf(cmp_str, "set %s time format", alias_s);
 	if (strstr(cmdbuf, cmp_str)){
+		MCI_SET_PARMS parms;
 		if (strstr(cmdbuf, "milliseconds"))
 		{
-			static MCI_SET_PARMS parms;
 			parms.dwTimeFormat = MCI_FORMAT_MILLISECONDS;
 			fake_mciSendCommandA(MAGIC_DEVICEID, MCI_SET, MCI_SET_TIME_FORMAT, (DWORD_PTR)&parms);
 			return 0;
 		}
 		if (strstr(cmdbuf, "tmsf"))
 		{
-			static MCI_SET_PARMS parms;
 			parms.dwTimeFormat = MCI_FORMAT_TMSF;
 			fake_mciSendCommandA(MAGIC_DEVICEID, MCI_SET, MCI_SET_TIME_FORMAT, (DWORD_PTR)&parms);
 			return 0;
 		}
 		if (strstr(cmdbuf, "msf"))
 		{
-			static MCI_SET_PARMS parms;
 			parms.dwTimeFormat = MCI_FORMAT_MSF;
 			fake_mciSendCommandA(MAGIC_DEVICEID, MCI_SET, MCI_SET_TIME_FORMAT, (DWORD_PTR)&parms);
 			return 0;
@@ -732,6 +730,7 @@ MCIERROR WINAPI fake_mciSendStringA(LPCSTR cmd, LPSTR ret, UINT cchReturn, HANDL
 	/* Handle "status cdaudio/alias" */
 	sprintf(cmp_str, "status %s", alias_s);
 	if (strstr(cmdbuf, cmp_str)){
+		MCI_STATUS_PARMS parms;
 		if (strstr(cmdbuf, "number of tracks"))
 		{
 			dprintf("  Returning number of tracks (%d)\n", lastTrack);
@@ -741,7 +740,6 @@ MCIERROR WINAPI fake_mciSendStringA(LPCSTR cmd, LPSTR ret, UINT cchReturn, HANDL
 		int track = 0;
 		if (sscanf(cmdbuf, "status %*s length track %d", &track) == 1)
 		{
-			static MCI_STATUS_PARMS parms;
 			parms.dwItem = MCI_STATUS_LENGTH;
 			parms.dwTrack = track;
 			fake_mciSendCommandA(MAGIC_DEVICEID, MCI_STATUS, MCI_STATUS_ITEM|MCI_TRACK, (DWORD_PTR)&parms);
@@ -754,7 +752,6 @@ MCIERROR WINAPI fake_mciSendStringA(LPCSTR cmd, LPSTR ret, UINT cchReturn, HANDL
 		}
 		if (strstr(cmdbuf, "length"))
 		{
-			static MCI_STATUS_PARMS parms;
 			parms.dwItem = MCI_STATUS_LENGTH;
 			fake_mciSendCommandA(MAGIC_DEVICEID, MCI_STATUS, MCI_STATUS_ITEM, (DWORD_PTR)&parms);
 			if (time_format == MCI_FORMAT_MILLISECONDS) {
@@ -766,7 +763,6 @@ MCIERROR WINAPI fake_mciSendStringA(LPCSTR cmd, LPSTR ret, UINT cchReturn, HANDL
 		}
 		if (sscanf(cmdbuf, "status %*s position track %d", &track) == 1)
 		{
-			static MCI_STATUS_PARMS parms;
 			parms.dwItem = MCI_STATUS_POSITION;
 			parms.dwTrack = track;
 			fake_mciSendCommandA(MAGIC_DEVICEID, MCI_STATUS, MCI_STATUS_ITEM|MCI_TRACK, (DWORD_PTR)&parms);
@@ -775,7 +771,6 @@ MCIERROR WINAPI fake_mciSendStringA(LPCSTR cmd, LPSTR ret, UINT cchReturn, HANDL
 		}
 		if (strstr(cmdbuf, "position"))
 		{
-			static MCI_STATUS_PARMS parms;
 			parms.dwItem = MCI_STATUS_POSITION;
 			fake_mciSendCommandA(MAGIC_DEVICEID, MCI_STATUS, MCI_STATUS_ITEM, (DWORD_PTR)&parms);
 			if (time_format == MCI_FORMAT_MILLISECONDS) {

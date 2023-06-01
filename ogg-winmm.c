@@ -16,9 +16,6 @@
 
 #include <windows.h>
 #include <stdio.h>
-#include <ctype.h>
-#include <dirent.h>
-#include <time.h>
 #include "player.h"
 #include "stub.h"
 
@@ -40,15 +37,15 @@ struct track_info
 	char path[MAX_PATH];    /* full path to ogg */
 	unsigned int position;  /* milliseconds */
 	unsigned int length;    /* milliseconds */
-	clock_t tick;           /* clock tick at play start */
+	DWORD tick;           /* clock tick at play start */
 };
 
 struct play_info
 {
 	int first;
-	unsigned int from; /* millseconds, 0 means from track beginning */
+	unsigned int from; /* millseconds; 0: track beginning, -1: track end */
 	int last;
-	unsigned int to; /* milliseconds, 0 means to track end */
+	unsigned int to; /* milliseconds; 0 track beginning, -1: track end */
 };
 
 struct track_info tracks[MAX_TRACKS+1]; // Track 0 is reserved.
@@ -72,24 +69,26 @@ int numTracks = 0;
 int time_format = MCI_FORMAT_MSF;
 
 DWORD auxVol = -1; // HWORD: Right, LWORD: Left
-int cddaVol = -1;
-int midiVol = -1;
-int waveVol = -1;
+int cddaVol = 100;
+int midiVol = 100;
+int waveVol = 100;
 
 DWORD WINAPI player_main(void *unused)
 {
 	while (WaitForSingleObject(event, INFINITE) == 0) {
 		int first = info.first < firstTrack ? firstTrack : info.first;
-		int last = info.last > lastTrack ? lastTrack : info.last;
+		int last = info.last > lastTrack+1 ? lastTrack+1 : info.last;
 		unsigned int from = info.from, to = info.to;
+		if (from == -1) {first++; from = 0;}
+		if (!to) {last--; to = -1;} // Convert [,) to [,]
 		current = first;
-		dprintf("[Thread] From %d (%u ms) to %d (%u ms)\n", first, from, last, to);
+		dprintf("[Thread] From %d (%d ms) to %d (%d ms)\n", first, from, last, to);
 
 		while (command == MCI_PLAY && current <= last) {
 			dprintf("[Thread] Current track %s\n", tracks[current].path);
-			tracks[current].tick = clock();
+			tracks[current].tick = GetTickCount();
 			mode = MCI_MODE_PLAY;
-			plr_play(tracks[current].path, current == first ? from : 0, current == last ? to : 0);
+			plr_play(tracks[current].path, current == first ? from : 0, current == last ? to : -1);
 
 			while (command == MCI_PLAY) {
 				int more = plr_pump();
@@ -132,14 +131,13 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 			*last = '\0';
 			strcat(last, ".ini");
 
-			cddaVol = GetPrivateProfileInt("OGG-WinMM", "CDDAVolume", -1, music_path);
-			midiVol = GetPrivateProfileInt("OGG-WinMM", "MIDIVolume", -1, music_path);
-			waveVol = GetPrivateProfileInt("OGG-WinMM", "WAVEVolume", -1, music_path);
+			cddaVol = GetPrivateProfileInt("OGG-WinMM", "CDDAVolume", 100, music_path);
+			midiVol = GetPrivateProfileInt("OGG-WinMM", "MIDIVolume", 100, music_path);
+			waveVol = GetPrivateProfileInt("OGG-WinMM", "WAVEVolume", 100, music_path);
 
-			/* 100% volume is equivalent to no override */
-			if (cddaVol < 0 || cddaVol > 99 ) cddaVol = -1;
-			if (midiVol < 0 || midiVol > 99 ) midiVol = -1;
-			if (waveVol < 0 || waveVol > 99 ) waveVol = -1;
+			if (cddaVol < 0 || cddaVol > 100 ) cddaVol = 100;
+			if (midiVol < 0 || midiVol > 100 ) midiVol = 100;
+			if (waveVol < 0 || waveVol > 100 ) waveVol = 100;
 
 			plr_volume(cddaVol, cddaVol);
 			stub_midivol(midiVol);
@@ -257,6 +255,8 @@ MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR 
 			case MCI_CLOSE:
 				{
 					dprintf("  MCI_CLOSE\n");
+					command = MCI_STOP;
+					plr_stop();
 					/* NOTE: MCI_CLOSE does stop the music in Vista+ but the original behaviour did not
 					   it only closed the handle to the opened device. You could still send MCI commands
 					   to a default cdaudio device but if you had used an alias you needed to re-open it.
@@ -266,13 +266,6 @@ MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR 
 			case MCI_PLAY:
 				{
 					dprintf("  MCI_PLAY\n");
-					if (mode == MCI_MODE_PAUSE) {
-						dprintf("    resume instead of new play\n");
-						mode = MCI_MODE_PLAY;
-						plr_resume();
-						break;
-					}
-
 					LPMCI_PLAY_PARMS parms = (LPVOID)dwParam;
 
 					if (fdwCommand & MCI_FROM) {
@@ -304,10 +297,10 @@ MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR 
 								plr_stop();
 								return 0;
 							}
-							dprintf("      mapped dwFrom to track %d (%u ms)\n", info.first, info.from);
+							dprintf("      mapped dwFrom to track %d (%d ms)\n", info.first, info.from);
 						}
 						info.last = lastTrack; /* default MCI_TO */
-						info.to = 0;
+						info.to = -1;
 					}
 
 					if (fdwCommand & MCI_TO) {
@@ -326,7 +319,7 @@ MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR 
 								parms->dwTo = MCI_MSF_MINUTE(parms->dwTo) * 60000 + MCI_MSF_SECOND(parms->dwTo) * 1000 + MCI_MSF_FRAME(parms->dwTo) * 1000 / 75;  
 							}
 							info.last = lastTrack;
-							info.to = 0;
+							info.to = -1;
 							for (int i = info.first; i <= lastTrack; i++) {
 								if (tracks[i].position + tracks[i].length >= parms->dwTo) {
 									info.last = i;
@@ -334,27 +327,27 @@ MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR 
 									break;
 								}
 							}
-							dprintf("      mapped dwTo to track %d (%u ms)\n", info.last, info.to);
-						}
-						if (!info.to) { // Convert track range from [) to []
-							info.last--;
+							dprintf("      mapped dwTo to track %d (%d ms)\n", info.last, info.to);
 						}
 					}
 
-					if ((fdwCommand & MCI_FROM) && (fdwCommand & MCI_TO) && (parms->dwFrom == parms->dwTo)) {
-						if (notify) {
-							notify = 0;
-							SendNotifyMessageA(window, MM_MCINOTIFY, MCI_NOTIFY_SUCCESSFUL, MAGIC_DEVICEID);
-							dprintf("(FROM == TO) Send message but no play\n");
-						}
-					} else if (event) {
+					if (event) {
 						if (mode != MCI_MODE_STOP) {
 							command = MCI_STOP;
 							plr_stop();
 							while (mode != MCI_MODE_STOP) Sleep(1);
 						}
-						command = MCI_PLAY;
-						SetEvent(event);
+						// If play time is less than 15ms (1 frame = 1000/75 ms), do not play.
+						if ((fdwCommand & MCI_FROM) && (fdwCommand & MCI_TO) && (info.first == info.last) && (info.from + 15 >= info.to)) {
+							if (notify) {
+								notify = 0;
+								SendNotifyMessageA(window, MM_MCINOTIFY, MCI_NOTIFY_SUCCESSFUL, MAGIC_DEVICEID);
+								dprintf("(FROM == TO) Send message but no play\n");
+							}
+						} else {
+							command = MCI_PLAY;
+							SetEvent(event);
+						}
 					}
 				}
 				break;
@@ -370,8 +363,8 @@ MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR 
 						info.from = 0;
 					} else if (fdwCommand & MCI_SEEK_TO_END) {
 						dprintf("    MCI_SEEK_TO_END\n");
-						info.first = lastTrack + 1;
-						info.from = 0;
+						info.first = lastTrack;
+						info.from = -1;
 					} else if (fdwCommand & MCI_TO) {
 						dprintf("    MCI_TO\n");
 						LPMCI_SEEK_PARMS parms = (LPVOID)dwParam;
@@ -396,11 +389,11 @@ MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR 
 									break;
 								}
 							}
-							dprintf("      mapped dwTo to track %d (%u ms)\n", info.first, info.from);
+							dprintf("      mapped dwTo to track %d (%d ms)\n", info.first, info.from);
 						}
 					}
 					info.last = lastTrack;
-					info.to = 0;
+					info.to = -1;
 				}
 				break;
 			case MCI_STOP:
@@ -410,11 +403,13 @@ MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR 
 					plr_stop(); /* Make STOP command instant. */
 				}
 				break;
-			case MCI_PAUSE: /* FIXME: MCICDA does not support resume? */
+			case MCI_PAUSE:
 				{
 					dprintf("  MCI_PAUSE\n");
-					plr_pause();
-					mode = MCI_MODE_PAUSE;
+					if (mode == MCI_MODE_PLAY) {
+						plr_pause();
+						mode = MCI_MODE_PAUSE;
+					}
 				}
 				break;
 			case MCI_INFO: /* Handling of MCI_INFO */
@@ -519,34 +514,36 @@ MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR 
 								if(fdwCommand & MCI_TRACK) { /* Get track length */
 									ms = tracks[parms->dwTrack].length;
 								} else { /* Get full length */
-									ms = tracks[lastTrack].position + tracks[lastTrack].length;
 									parms->dwTrack = lastTrack;
+									ms = tracks[lastTrack].position + tracks[lastTrack].length;
 								}
 								if (time_format == MCI_FORMAT_MILLISECONDS) {
 									parms->dwReturn = ms;
-								} else if (time_format == MCI_FORMAT_MSF) {
+								} else { // WTF! MCI_FORMAT_MSF and MCI_FORMAT_TMSF both return in MSF
 									parms->dwReturn = MCI_MAKE_MSF(ms/60000, ms/1000%60, ms%1000*75/1000);
-								} else {
-									parms->dwReturn = MCI_MAKE_TMSF(parms->dwTrack, ms/60000, ms/1000%60, ms%1000*75/1000);
 								}
 								break;
 							case MCI_STATUS_POSITION:
 								dprintf("      MCI_STATUS_POSITION\n");
 								if (fdwCommand & MCI_TRACK) { /* Track position */
-									ms = tracks[parms->dwTrack].position;
-								} else if (fdwCommand & MCI_STATUS_START) { /* Medium start position */
+									parms->dwReturn = tracks[parms->dwTrack].position; // as milliseconds
 									ms = 0;
+								} else if (fdwCommand & MCI_STATUS_START) { /* Medium start position */
 									parms->dwTrack = firstTrack;
+									parms->dwReturn = 0;
+									ms = 0;
 								} else { /* Playing position */
-									// FIXME: fix position for pause
-									ms = mode == MCI_MODE_PLAY ? (clock() - tracks[current].tick) * 1000 / CLOCKS_PER_SEC : 0;
 									parms->dwTrack = current;
+									parms->dwReturn = tracks[parms->dwTrack].position; // as milliseconds
+									// FIXME: fix position for pause
+									ms = mode == MCI_MODE_PLAY ? GetTickCount() - tracks[parms->dwTrack].tick : 0;
 								}
 								if (time_format == MCI_FORMAT_MILLISECONDS) {
-									parms->dwReturn = ms;
+									parms->dwReturn += ms;
 								} else if (time_format == MCI_FORMAT_MSF) {
+									ms += parms->dwReturn;
 									parms->dwReturn = MCI_MAKE_MSF(ms/60000, ms/1000%60, ms%1000*75/1000);
-								} else { /* TMSF */
+								} else { /* MCI_FORMAT_TMSF */
 									/* for CD-DA, frames(sectors) range from 0 to 74  */
 									parms->dwReturn = MCI_MAKE_TMSF(parms->dwTrack, ms/60000, ms/1000%60, ms%1000*75/1000);
 								}
@@ -700,6 +697,7 @@ MCIERROR WINAPI fake_mciSendStringA(LPCSTR cmd, LPSTR ret, UINT cchReturn, HANDL
 		{
 			info.first = track;
 		}
+		info.from = 0;
 		return 0;
 	}
 
@@ -849,7 +847,7 @@ MCIERROR WINAPI fake_mciSendStringA(LPCSTR cmd, LPSTR ret, UINT cchReturn, HANDL
 
 UINT WINAPI fake_auxGetNumDevs()
 {
-	dprintf("fake_auxGetNumDevs()\n");
+	dprintf("fake_auxGetNumDevs() = 1\n");
 	return 1;
 }
 
@@ -869,9 +867,8 @@ MMRESULT WINAPI fake_auxGetDevCapsA(UINT_PTR uDeviceID, LPAUXCAPS lpCaps, UINT c
 
 MMRESULT WINAPI fake_auxGetVolume(UINT uDeviceID, LPDWORD lpdwVolume)
 {
-	dprintf("fake_auxGetVolume(uDeviceId=%08X, lpdwVolume=%p)\n", uDeviceID, lpdwVolume);
-
 	*lpdwVolume = auxVol;
+	dprintf("fake_auxGetVolume(uDeviceId=%08X, dwVolume=%08X)\n", uDeviceID, *lpdwVolume);
 	return MMSYSERR_NOERROR;
 }
 
@@ -880,8 +877,7 @@ MMRESULT WINAPI fake_auxSetVolume(UINT uDeviceID, DWORD dwVolume)
 	dprintf("fake_auxSetVolume(uDeviceId=%08X, dwVolume=%08X)\n", uDeviceID, dwVolume);
 
 	auxVol = dwVolume;
-	/* Allow aux volume control when no user override */
-	if (cddaVol == -1) plr_volume((auxVol & 0xFFFF) * 100 / 65535, (auxVol >> 16) * 100 / 65535);
+	plr_volume((auxVol & 0xFFFF) * cddaVol / 65535, (auxVol >> 16) * cddaVol / 65535);
 
 	return MMSYSERR_NOERROR;
 }

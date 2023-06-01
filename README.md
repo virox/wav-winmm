@@ -42,6 +42,11 @@ NOTE: It actually can also work on Win95/98 if you follow the extra procedure be
 
 # Revisions:
 
+v.2023.06.01
+- Fix MCI_PAUSE & MCI_RESUME when not playing.
+- Fix MCI_STATUS_LENGTH when time format is set to TMSF.
+- Fix MCI_STATUS_POSITION when time format is set to milliseconds or MSF.
+
 v.2023.04.14
 - Implement MCI_SEEK & MCI_GETDEVCAPS.
 - Allow aux volume control on left/right channel separately.  

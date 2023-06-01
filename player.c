@@ -10,7 +10,7 @@
 bool		plr_run			= false;
 bool		plr_bsy			= false;
 unsigned int	plr_len			= 0;
-float		plr_vol[2]		= {-1.0, -1.0}; // Left, Right
+float		plr_vol[2]		= {100.0, 100.0}; // Left, Right
 
 HWAVEOUT	plr_hw	 		= NULL;
 HANDLE		plr_ev  		= NULL;
@@ -23,10 +23,10 @@ char		plr_buf[WAV_BUF_CNT][WAV_BUF_LEN] __attribute__ ((aligned(4)));
 
 void plr_volume(int vol_l, int vol_r)
 {
-	if (vol_l < 0 || vol_l > 99) plr_vol[0] = -1.0;
+	if (vol_l < 0 || vol_l > 99) plr_vol[0] = 100.0;
 	else plr_vol[0] = vol_l / 100.0;
 
-	if (vol_r < 0 || vol_r > 99) plr_vol[1] = -1.0;
+	if (vol_r < 0 || vol_r > 99) plr_vol[1] = 100.0;
 	else plr_vol[1] = vol_r / 100.0;
 }
 
@@ -95,8 +95,11 @@ int plr_play(const char *path, unsigned int from, unsigned int to)
 		plr_hdr[i].dwFlags = WHDR_DONE;
 	}
 
-	if (from) ov_time_seek(&plr_vf, (double)from / 1000);
-	plr_len = to > from ? (unsigned int)ceil((to - from) / 1000.0 * vi->rate) * 2 * vi->channels : -1; // heed alignment 
+	if (from == -1) plr_len = 0; 
+	else {
+		if (from) ov_time_seek(&plr_vf, (double)from / 1000);
+		plr_len = to != -1 ? (unsigned int)ceil((to - from) / 1000.0 * vi->rate) * 2 * vi->channels : -1; // heed alignment 
+	}
 
 	plr_run = true;
 	return 1;
@@ -172,11 +175,11 @@ int plr_pump()
 		plr_len -= pos;
 
 		/* volume control, kinda nasty */
-		if (plr_vol[0] != -1.0 || plr_vol[1] != -1.0) {
+		if (plr_vol[0] != 100.0 || plr_vol[1] != 100.0) {
 			short *sbuf = (short *)buf;
 			for (int j = 0, end = pos / 2; j < end; j+=2) {
-				if (plr_vol[0] != -1.0) sbuf[j] *= plr_vol[0];
-				if (plr_vol[1] != -1.0) sbuf[j+1] *= plr_vol[1];
+				if (plr_vol[0] != 100.0) sbuf[j] *= plr_vol[0];
+				if (plr_vol[1] != 100.0) sbuf[j+1] *= plr_vol[1];
 			}
 		}
 

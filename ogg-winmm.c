@@ -128,8 +128,7 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 
 		char *last = strrchr(music_path, '.');
 		if (last) {
-			*last = '\0';
-			strcat(last, ".ini");
+			strcpy(last, ".ini");
 
 			cddaVol = GetPrivateProfileInt("OGG-WinMM", "CDDAVolume", 100, music_path);
 			midiVol = GetPrivateProfileInt("OGG-WinMM", "MIDIVolume", 100, music_path);
@@ -860,7 +859,7 @@ MMRESULT WINAPI fake_auxGetDevCapsA(UINT_PTR uDeviceID, LPAUXCAPS lpCaps, UINT c
 	lpCaps->vDriverVersion = 1;
 	strcpy(lpCaps->szPname, "ogg-winmm virtual CD");
 	lpCaps->wTechnology = AUXCAPS_CDAUDIO;
-	lpCaps->dwSupport = AUXCAPS_VOLUME;
+	lpCaps->dwSupport = AUXCAPS_LRVOLUME | AUXCAPS_VOLUME;
 
 	return MMSYSERR_NOERROR;
 }

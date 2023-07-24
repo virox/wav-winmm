@@ -42,6 +42,9 @@ NOTE: It actually can also work on Win95/98 if you follow the extra procedure be
 
 # Revisions:
 
+v.2023.07.24
+- Correctly report stereo CD separate channel volume control capability.
+
 v.2023.06.01
 - Fix MCI_PAUSE & MCI_RESUME when not playing.
 - Fix MCI_STATUS_LENGTH when time format is set to TMSF.

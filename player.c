@@ -4,8 +4,9 @@
 #include <windows.h>
 #include <vorbis/vorbisfile.h>
 
-#define WAV_BUF_CNT	(2)		// Dual buffer
-#define WAV_BUF_LEN	(44100*2)	// 44100Hz, 16-bit, 2-channel, 1/2 second buffer
+#define WAV_BUF_CNT	(2)				// Dual buffer
+#define WAV_BUF_TME	(1000)				// The expected playtime of the buffer in milliseconds: 1000ms
+#define WAV_BUF_LEN	(44100*2*2*(WAV_BUF_TME/1000))	// 44100Hz, 16-bit, 2-channel, 1 second buffer
 
 bool		plr_run			= false;
 bool		plr_bsy			= false;
@@ -39,13 +40,19 @@ unsigned int plr_length(const char *path) // in millisecond
 	return ret;
 }
 
-void plr_reset()
+// plr_reset() should only be called by the thread itself!
+void plr_reset(BOOL wait)	// Wait for remaining buffer to drain or not.
 {
 	if (plr_vf.datasource) {
 		ov_clear(&plr_vf);
 	}
 
 	if (plr_hw) {
+		if (wait) {
+			for (int n = 0; n < WAV_BUF_CNT; n++, plr_que = (plr_que+1) % WAV_BUF_CNT) {
+				if (!(plr_hdr[plr_que].dwFlags & WHDR_DONE)) WaitForSingleObject(plr_ev, WAV_BUF_TME);
+			}
+		}
 		waveOutReset(plr_hw);
 		for (int i = 0; i < WAV_BUF_CNT; i++) {
 			waveOutUnprepareHeader(plr_hw, &plr_hdr[i], sizeof(WAVEHDR));
@@ -62,8 +69,6 @@ void plr_reset()
 
 int plr_play(const char *path, unsigned int from, unsigned int to)
 {
-	plr_reset();
-
 	if (ov_fopen(path, &plr_vf) != 0) return 0;
 
 	vorbis_info *vi = ov_info(&plr_vf, -1);

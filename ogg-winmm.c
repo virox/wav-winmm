@@ -99,6 +99,8 @@ DWORD WINAPI player_main(void *unused)
 					break;
 				}
 			}
+
+			plr_reset(command == MCI_PLAY);
 		}
 
 		/* Sending notify successful message:*/
@@ -109,7 +111,6 @@ DWORD WINAPI player_main(void *unused)
 		}
 
 		mode = MCI_MODE_STOP;
-		plr_reset();
 		if (command == MCI_DELETE) break;
 	}
 	
@@ -188,6 +189,7 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 		}
 #endif
 		command = MCI_DELETE;
+		plr_stop();
 		if (event) SetEvent(event);
 		if (player) WaitForSingleObject(player, INFINITE);
 

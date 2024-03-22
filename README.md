@@ -42,6 +42,9 @@ NOTE: It actually can also work on Win95/98 if you follow the extra procedure be
 
 # Revisions:
 
+v.2024.03.21
+- Fix the truncation at the end of each song ranging from 1ms to 500ms.
+
 v.2023.07.24
 - Correctly report stereo CD separate channel volume control capability.
 

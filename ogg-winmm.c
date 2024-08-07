@@ -51,7 +51,7 @@ struct play_info
 struct track_info tracks[MAX_TRACKS+1]; // Track 0 is reserved.
 struct play_info info = {0};
 
-DWORD thread = 0; // Needed for Win85/98 compatibility
+DWORD thread = 0; // Needed for Win95/98 compatibility
 HANDLE player = NULL;
 HANDLE event = NULL;
 HWND window = NULL;

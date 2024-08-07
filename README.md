@@ -42,6 +42,9 @@ NOTE: It actually can also work on Win95/98 if you follow the extra procedure be
 
 # Revisions:
 
+v.2024.08.08
+- Small compiler optimizations.
+
 v.2024.03.21
 - Fix the truncation at the end of each song ranging from 1ms to 500ms.
 

@@ -3,14 +3,14 @@
 #include <ctype.h>
 #include "player.h"
 
-static float midiVol = 100.0;
-static float waveVol = 100.0;
+static float midiVol = 1.0;
+static float waveVol = 1.0;
 static int waveBits = -1;
 
 static HINSTANCE realWinmmDLL = NULL;
 
-void stub_midivol(int vol) { midiVol = vol < 0 || vol > 99  ? 100.0 : vol / 100.0; }
-void stub_wavevol(int vol) { waveVol = vol < 0 || vol > 99  ? 100.0 : vol / 100.0; }
+void stub_midivol(int vol) { midiVol = vol < 0 || vol > 99  ? 1.0 : vol / 100.0; }
+void stub_wavevol(int vol) { waveVol = vol < 0 || vol > 99  ? 1.0 : vol / 100.0; }
 
 void unloadRealDLL()
 {
@@ -43,7 +43,7 @@ MMRESULT WINAPI fake_midiStreamOut(HMIDISTRM a0, LPMIDIHDR a1, UINT a2)
 		funcp = (void*)GetProcAddress(loadRealDLL(), "midiStreamOut");
 
 #ifdef MIDI_VELOCITY_SCALING
-	if (midiVol != 100.0 && a1 && a1->lpData) {
+	if (midiVol != 1.0 && a1 && a1->lpData) {
 		for (int i = 0, j = a1->dwBytesRecorded; i < j; i += sizeof(DWORD)*3) {
 			MIDIEVENT *pe = (MIDIEVENT *)(a1->lpData + i);
 			if (pe->dwEvent & MEVT_F_LONG) {
@@ -86,7 +86,7 @@ MMRESULT WINAPI fake_waveOutWrite(HWAVEOUT a0, LPWAVEHDR a1, UINT a2)
 		funcp = (void*)GetProcAddress(loadRealDLL(), "waveOutWrite");
 
 	/* let owr own OGG wave pass through */
-	if ((waveVol != 100.0 || midiVol != 100.0 ) && a1 && a1->lpData && a1->dwUser != 0xCDDA7777) {
+	if ((waveVol != 1.0 || midiVol != 1.0 ) && a1 && a1->lpData && a1->dwUser != 0xCDDA7777) {
 		/* Windows is f**ked up. MIDI synth driver converts MIDI to WAVE and then calls winmm.waveOutWrite!!! */
 		void *addr = __builtin_return_address(0);
 		char caller[MAX_PATH];
@@ -94,13 +94,13 @@ MMRESULT WINAPI fake_waveOutWrite(HWAVEOUT a0, LPWAVEHDR a1, UINT a2)
 		VirtualQuery(addr, &mbi, sizeof(MEMORY_BASIC_INFORMATION));
 		GetModuleFileName(mbi.AllocationBase, caller, MAX_PATH);
 
-		float vol = 100.0;
+		float vol = 1.0;
 		char *pos = strrchr(caller, '\\');
 		/* Mixer: msacm32.drv */
 		if (strstr(pos, "wdmaud.drv")) vol = midiVol;
 		else if (!strstr(pos, ".drv")) vol = waveVol;
 
-		if (vol != 100.0) {
+		if (vol != 1.0) {
 			short *wave16;
 			char *wave8;
 			switch (waveBits) {

@@ -57,7 +57,8 @@ HANDLE event = NULL;
 HWND window = NULL;
 const char alias_def[] = "cdaudio";
 char alias_s[100] = "cdaudio";
-char music_path[MAX_PATH];
+char path[MAX_PATH];
+char cddaPath[MAX_PATH];
 
 int mode = MCI_MODE_STOP;
 int command = 0;
@@ -125,15 +126,16 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 #ifdef _DEBUG
 		fh = fopen("winmm.log", "w");
 #endif
-		GetModuleFileName(hinstDLL, music_path, sizeof(music_path));
+		GetModuleFileName(hinstDLL, path, sizeof(path));
 
-		char *last = strrchr(music_path, '.');
+		char *last = strrchr(path, '.');
 		if (last) {
 			strcpy(last, ".ini");
 
-			cddaVol = GetPrivateProfileInt("OGG-WinMM", "CDDAVolume", 100, music_path);
-			midiVol = GetPrivateProfileInt("OGG-WinMM", "MIDIVolume", 100, music_path);
-			waveVol = GetPrivateProfileInt("OGG-WinMM", "WAVEVolume", 100, music_path);
+			GetPrivateProfileString("OGG-WinMM", "CDDAPath", "Music", cddaPath, MAX_PATH, path);
+			cddaVol = GetPrivateProfileInt("OGG-WinMM", "CDDAVolume", 100, path);
+			midiVol = GetPrivateProfileInt("OGG-WinMM", "MIDIVolume", 100, path);
+			waveVol = GetPrivateProfileInt("OGG-WinMM", "WAVEVolume", 100, path);
 
 			if (cddaVol < 0 || cddaVol > 100 ) cddaVol = 100;
 			if (midiVol < 0 || midiVol > 100 ) midiVol = 100;
@@ -144,19 +146,20 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 			stub_wavevol(waveVol);
 		}
 
-		last = strrchr(music_path, '\\');
+		last = strrchr(path, '\\');
 		if (last) *last = '\0';
-		strcat(music_path, "\\MUSIC");
+		strcat(path, "\\");
+		strcat(path, cddaPath);
 
-		DWORD fa = GetFileAttributes(music_path);
+		DWORD fa = GetFileAttributes(path);
 		if (fa != INVALID_FILE_ATTRIBUTES && fa & FILE_ATTRIBUTE_DIRECTORY) {
-			dprintf("ogg-winmm music directory is %s\n", music_path);
+			dprintf("ogg-winmm music directory is %s\n", path);
 
 			memset(tracks, 0, sizeof(tracks));
 			unsigned int position = 0;
 
 			for (int i = 1; i <= MAX_TRACKS; i++) {
-				snprintf(tracks[i].path, MAX_PATH, "%s\\Track%02d.ogg", music_path, i);
+				snprintf(tracks[i].path, MAX_PATH, "%s\\Track%02d.ogg", path, i);
 				tracks[i].position = position;
 				tracks[i].length = plr_length(tracks[i].path);
 

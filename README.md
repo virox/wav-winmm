@@ -42,6 +42,9 @@ NOTE: It actually can also work on Win95/98 if you follow the extra procedure be
 
 # Revisions:
 
+v.2024.10.24
+- Add an option to customize the music folder name.
+
 v.2024.08.08
 - Small compiler optimizations.
 

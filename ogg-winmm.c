@@ -207,7 +207,7 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR fdwCommand, DWORD_PTR dwParam)
 {
 	char cmdbuf[1024];
-	dprintf("mciSendCommandA(IDDevice=%p, uMsg=%p, fdwCommand=%p, dwParam=%p)\n", IDDevice, uMsg, fdwCommand, dwParam);
+	dprintf("mciSendCommandA(IDDevice=%p, uMsg=%p, fdwCommand=%p, dwParam=%p) @ %04X\n", IDDevice, uMsg, fdwCommand, dwParam, GetTickCount());
 
 	if (fdwCommand & MCI_NOTIFY) {
 		dprintf("  MCI_NOTIFY\n");
@@ -350,6 +350,7 @@ MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR 
 							}
 						} else {
 							command = MCI_PLAY;
+							mode = MCI_MODE_PLAY;
 							SetEvent(event);
 						}
 					}

@@ -42,6 +42,9 @@ NOTE: It actually can also work on Win95/98 if you follow the extra procedure be
 
 # Revisions:
 
+v.2025.01.09
+- Link to "msvcrt40.dll" for backward compatibility to Win9x.
+
 v.2024.11.12
 - Compatibility fix for thread scheduling on Windows XP or later.
 

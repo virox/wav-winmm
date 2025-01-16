@@ -42,6 +42,9 @@ NOTE: It actually can also work on Win95/98 if you follow the extra procedure be
 
 # Revisions:
 
+v.2025.01.16
+- Treat PLAY as RESUME when in PAUSE.
+
 v.2025.01.09
 - Link to "msvcrt40.dll" for backward compatibility to Win9x.
 

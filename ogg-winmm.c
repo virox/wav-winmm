@@ -270,6 +270,14 @@ MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR 
 			case MCI_PLAY:
 				{
 					dprintf("  MCI_PLAY\n");
+
+					// Treat PLAY as RESUME when in PAUSE.
+					if ((mode == MCI_MODE_PAUSE) && !(fdwCommand & MCI_FROM)) {
+						mode = MCI_MODE_PLAY;
+						plr_resume();
+						break;
+					}
+
 					LPMCI_PLAY_PARMS parms = (LPVOID)dwParam;
 
 					if (fdwCommand & MCI_FROM) {

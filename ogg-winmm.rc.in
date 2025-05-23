@@ -5,13 +5,13 @@ FILEVERSION __REV__
     {
         BLOCK "040904B0"
         {
-            VALUE "ProductName", "ogg-winmm"
+            VALUE "ProductName", "wav-winmm"
             VALUE "ProductVersion", "__REV__"
-            VALUE "InternalName", "ogg-winmm"
-            VALUE "LegalCopyright", "AyuanX"
-            VALUE "OriginalFileName", "ogg-winmm.dll"
-            VALUE "FileDescription", "Windows CD-DA Audio Emulator"
-            VALUE "Comments", "https://github.com/ayuanx/ogg-winmm.git"
+            VALUE "InternalName", "wav-winmm"
+            VALUE "LegalCopyright", "Based on work by AyuanX"
+            VALUE "OriginalFileName", "winmm.dll"
+            VALUE "FileDescription", "Windows CD Audio Emulator (WAV version)"
+            VALUE "Comments", "Forked from https://github.com/ayuanx/ogg-winmm"
         }
     }
 

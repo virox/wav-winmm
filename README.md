@@ -28,7 +28,7 @@ Instead of accessing audio on physical CDs, wav-winmm emulates CD-DA playback us
 
 ---
 
-## Requirements
+# Requirements
 
 - Windows XP or newer
 - Works with 32-bit games expecting CD audio via `winmm.dll`
@@ -38,7 +38,7 @@ Instead of accessing audio on physical CDs, wav-winmm emulates CD-DA playback us
 
 ---
 
-## Building from Source
+# Building from Source
 
 To build `wav-winmm.dll`:
 
@@ -155,7 +155,7 @@ v.2021.07.08:
 - Implement realtime TMSF report for MCI_STATUS_POSITION.
   Many games use this realtime status to sync up video and audio frame by frame.
 
-## Licensing
+# Licensing
 
 This project, **wav-winmm**, is a fork of [ogg-winmm](https://github.com/ayuanx/ogg-winmm) by AyuanX and is licensed under the **GNU General Public License version 2 (GPL-2.0)**.
 

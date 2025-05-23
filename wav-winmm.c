@@ -34,7 +34,7 @@ FILE *fh = NULL;
 
 struct track_info
 {
-	char path[MAX_PATH];    /* full path to ogg */
+	char path[MAX_PATH];    /* full path to WAV */
 	unsigned int position;  /* milliseconds */
 	unsigned int length;    /* milliseconds */
 	DWORD tick;           /* clock tick at play start */
@@ -132,10 +132,10 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 		if (last) {
 			strcpy(last, ".ini");
 
-			GetPrivateProfileString("OGG-WinMM", "CDDAPath", "Music", cddaPath, MAX_PATH, path);
-			cddaVol = GetPrivateProfileInt("OGG-WinMM", "CDDAVolume", 100, path);
-			midiVol = GetPrivateProfileInt("OGG-WinMM", "MIDIVolume", 100, path);
-			waveVol = GetPrivateProfileInt("OGG-WinMM", "WAVEVolume", 100, path);
+			GetPrivateProfileString("WAV-WinMM", "CDDAPath", "Music", cddaPath, MAX_PATH, path);
+			cddaVol = GetPrivateProfileInt("WAV-WinMM", "CDDAVolume", 100, path);
+			midiVol = GetPrivateProfileInt("WAV-WinMM", "MIDIVolume", 100, path);
+			waveVol = GetPrivateProfileInt("WAV-WinMM", "WAVEVolume", 100, path);
 
 			if (cddaVol < 0 || cddaVol > 100 ) cddaVol = 100;
 			if (midiVol < 0 || midiVol > 100 ) midiVol = 100;
@@ -153,13 +153,13 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 
 		DWORD fa = GetFileAttributes(path);
 		if (fa != INVALID_FILE_ATTRIBUTES && fa & FILE_ATTRIBUTE_DIRECTORY) {
-			dprintf("ogg-winmm music directory is %s\n", path);
+			dprintf("WAV-winmm music directory is %s\n", path);
 
 			memset(tracks, 0, sizeof(tracks));
 			unsigned int position = 0;
 
 			for (int i = 1; i <= MAX_TRACKS; i++) {
-				snprintf(tracks[i].path, MAX_PATH, "%s\\Track%02d.ogg", path, i);
+				snprintf(tracks[i].path, MAX_PATH, "%s\\Track%02d.wav", path, i);
 				tracks[i].position = position;
 				tracks[i].length = plr_length(tracks[i].path);
 
@@ -871,7 +871,7 @@ MMRESULT WINAPI fake_auxGetDevCapsA(UINT_PTR uDeviceID, LPAUXCAPS lpCaps, UINT c
 	lpCaps->wMid = 2 /*MM_CREATIVE*/;
 	lpCaps->wPid = 401 /*MM_CREATIVE_AUX_CD*/;
 	lpCaps->vDriverVersion = 1;
-	strcpy(lpCaps->szPname, "ogg-winmm virtual CD");
+	strcpy(lpCaps->szPname, "WAV-winmm virtual CD");
 	lpCaps->wTechnology = AUXCAPS_CDAUDIO;
 	lpCaps->dwSupport = AUXCAPS_LRVOLUME | AUXCAPS_VOLUME;
 

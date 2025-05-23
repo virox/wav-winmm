@@ -154,3 +154,17 @@ v.2021.07.09:
 v.2021.07.08:
 - Implement realtime TMSF report for MCI_STATUS_POSITION.
   Many games use this realtime status to sync up video and audio frame by frame.
+
+## Licensing
+
+This project, **wav-winmm**, is a fork of [ogg-winmm](https://github.com/ayuanx/ogg-winmm) by AyuanX and is licensed under the **GNU General Public License version 2 (GPL-2.0)**.
+
+You are free to use, modify, and distribute this software under the terms of that license.
+
+Please note:
+- You **must include the full source code** if you distribute a compiled binary (`winmm.dll`)
+- You **must retain this license** and include a copy of the GPL v2 license text in your distribution
+- You **must credit the original author** (AyuanX) where appropriate
+
+For full legal terms, see the included `LICENSE.txt` or visit:  
+https://www.gnu.org/licenses/old-licenses/gpl-2.0.html

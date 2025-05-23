@@ -1,46 +1,59 @@
-# ogg-winmm CD Audio Emulator
+# wav-winmm CD Audio Emulator
 
-ogg-winmm is a wrapper of "winmm.dll", which is used by many games and programs to play CD-DA audio tracks.
+**wav-winmm** is a replacement wrapper for `winmm.dll` used by many classic games and programs to play CD audio tracks.
 
-ogg-winmm emulates the CD-DA audio tracks by reading them from ogg files instead of audio tracks on a CD-ROM.
+Instead of accessing audio on physical CDs, wav-winmm emulates CD-DA playback using standard uncompressed **WAV** files (`Track02.wav`, `Track03.wav`, etc.). It also provides separate volume controls for CDDA, MIDI, and WAVE audio — something modern Windows versions no longer support natively.
 
-ogg-winmm also provides separate volume control for CDDA/MIDI/WAVE, which has been missing in Windows Vista/7/8/10.
 
 # Usage:
 
-1. Rip the audio tracks from the CD and encode them to ogg files, following naming convention:
-> **Track02.ogg, Track03.ogg, Track04.ogg, ...**
+1. **Rip your CD tracks** using a tool like Exact Audio Copy (EAC) and save them as **WAV** files using the naming convention:
+> **Track02.wav, Track03.wav, Track04.wav, ...**
 
-  Note that the file names can not contain whitespace, and the track numbers must be contiguous without gap in the middle.
+- Numbering usually starts from `Track02.wav` because `Track01` on mixed-mode CDs is often a data track.
+- Do not skip track numbers or use names with spaces.
 
-  Also note the numbering usually starts from 02 since on mixed mode CDs the first track is a data track.
-  
-  In rare cases some games may use a pure audio CD with no data tracks in which case you should start numbering them from "Track01.ogg".
+2. **Place the WAV files** in a folder called `Music` inside the same directory as your game's executable.
 
-2. Extract the dll file and the ini file to the game folder where the game's main executable file is located.
+3. **Copy the following files** to the game folder:
+- `winmm.dll` (this DLL from the wav-winmm build)
+- `winmm.ini` (optional configuration file for volume control)
 
-3. Create a subfolder called "Music" there and put the ogg files in it. 
+4. **(Optional)** Edit `winmm.ini` to customize volume levels for:
+- `CDDA`
+- `MIDI`
+- `WAVE`
 
-4. (Optional) Override the volume for CDDA/MIDI/WAVE in "winmm.ini" file if desired.
+5. Run the game — and enjoy the music from your WAV files instead of a CD!
 
-5. Run the game and enjoy the emulated CD audio.
+---
 
-# Requirement:
+## Requirements
 
-- Minimum operating system: Windows XP or newer. 
+- Windows XP or newer
+- Works with 32-bit games expecting CD audio via `winmm.dll`
+- Also compatible with Windows 95/98 using this workaround:
+1. Rename `winmm.dll` → `wincd.dll`, and `winmm.ini` → `wincd.ini`
+2. Use a hex editor to replace `"winmm.dll"` with `"wincd.dll"` inside the game executable
 
-NOTE: It actually can also work on Win95/98 if you follow the extra procedure below:
-1. Rename "winmm.dll" to "wincd.dll", and rename "winmm.ini" to "wincd.ini".
-2. Use a hex editor to open the game's exe file, then replace all occurrences of string "winmm.dll" (case-insensitive) to "wincd.dll".
+---
 
-# Building:
+## Building from Source
 
-- Use MinGW 6.3.0-1 or later to build on Windows OS.
-- Dependencies:
-  - libogg (https://github.com/gcp/libogg.git)
-  - libvorbis (https://github.com/xiph/vorbis.git)
+To build `wav-winmm.dll`:
+
+- Use **MinGW** (e.g. `i686-w64-mingw32-gcc`)
+- Run:
+```bash
+make                # or make -f Makefile.linuxMinGW
+```
 
 # Revisions:
+
+v.2025.05.23
+- Remove OGG/Vorbis support.
+- Fully rewritten to use standard WAV files ripped from CD audio instead.
+- Simplified build process; removed all external dependencies.
 
 v.2025.01.16
 - Treat PLAY as RESUME when in PAUSE.

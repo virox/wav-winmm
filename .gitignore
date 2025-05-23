@@ -1,3 +1,3 @@
-ogg-winmm.rc.o
-ogg-winmm.dll
+wav-winmm.rc.o
+wav-winmm.dll
 winmm.dll

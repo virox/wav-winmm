@@ -1,12 +1,12 @@
 REV=$(shell sh -c 'date +"%Y,%m,%d"')
 
-all: ogg-winmm.dll
+all: wav-winmm.dll
 
-ogg-winmm.rc.o: ogg-winmm.rc.in
-	sed 's/__REV__/$(REV)/' ogg-winmm.rc.in | windres -O coff -o ogg-winmm.rc.o
+wav-winmm.rc.o: wav-winmm.rc.in
+	sed 's/__REV__/$(REV)/' wav-winmm.rc.in | windres -O coff -o wav-winmm.rc.o
 
-ogg-winmm.dll: ogg-winmm.c player.c player.h stubs.c stub.h ogg-winmm.def ogg-winmm.rc.o
-	gcc -m32 -std=gnu99 -static-libgcc -Wl,--enable-stdcall-fixup,--gc-sections -s -O2 -shared -o winmm.dll ogg-winmm.c player.c stubs.c ogg-winmm.def ogg-winmm.rc.o -Ilibs/include -Llibs -lwinmm -l:libvorbisfile.a -l:libvorbis.a -l:libogg.a
+wav-winmm.dll: wav-winmm.c player.c player.h stubs.c stub.h wav-winmm.def wav-winmm.rc.o
+	gcc -m32 -std=gnu99 -static-libgcc -Wl,--enable-stdcall-fixup,--gc-sections -s -O2 -shared -o winmm.dll wav-winmm.c player.c stubs.c wav-winmm.def wav-winmm.rc.o -lwinmm
 
 clean:
-	rm -f winmm.dll ogg-winmm.rc.o
+	rm -f winmm.dll wav-winmm.rc.o
